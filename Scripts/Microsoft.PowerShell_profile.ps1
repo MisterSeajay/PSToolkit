@@ -24,5 +24,4 @@ function GLOBAL:prompt
   "> "
 } 
 
-Set-Location S:\PowerShell
 Import-Module .\PSToolkit\PSToolkit.psd1
