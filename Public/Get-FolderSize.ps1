@@ -1,4 +1,30 @@
-function Get-FolderSize{
+<#
+.SYNOPSIS
+    Gets the size of subdirectories in the specified path.
+
+.DESCRIPTION
+    Calculates the size of each subdirectory in the specified path and returns
+    custom objects containing the name, size in MB, and full path.
+
+.PARAMETER Path
+    The path to examine. Defaults to the current location.
+
+.EXAMPLE
+    Get-FolderSize
+
+    Returns the size of all subdirectories in the current location.
+
+.EXAMPLE
+    Get-FolderSize -Path "C:\Users"
+
+    Returns the size of all subdirectories in C:\Users.
+
+.NOTES
+    - Size calculation includes all files in subdirectories
+    - May be slow for large directory structures
+    - Requires read permissions for all subdirectories
+#>
+function Get-FolderSize {
     [CmdletBinding()]
     param(
         [Parameter()]
