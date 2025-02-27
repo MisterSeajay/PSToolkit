@@ -45,12 +45,12 @@ function newGoogleDriveIcon{
     while(-not (Test-Path $GoogleDrivePath)){
         $GoogleDrivePath = Read-Host "Enter path to Google Drive folder"
     }
-    
+
     Convert-IniFileToVariables -Path "$GoogleDrivePath\desktop.ini"
-    
+
     Write-Warning "Adding entries to registry"
     Write-Debug "HKEY_CURRENT_USER\Software\Classes\CLSID\{$clsid}"
-    
+
     $RegCommands = @(
         'New-Item -Path "HKCU:\Software\Classes\CLSID" -Name "{$clsid}" -Value "Google Drive" -Force'
         'New-ItemProperty -Path "HKCU:\Software\Classes\CLSID\{$clsid}" -Name "System.IsPinnedToNamespaceTree" -PropertyType DWORD -Value 0x1 -Force'
