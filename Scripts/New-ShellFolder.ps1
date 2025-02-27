@@ -1,8 +1,4 @@
-﻿
-param(
-)
-
-New-PSDrive -Name HKCR -PSProvider Registry -Root HKEY_CLASSES_ROOT
+﻿New-PSDrive -Name HKCR -PSProvider Registry -Root HKEY_CLASSES_ROOT
 
 $guid = ([System.Guid]::NewGuid()).Guid
 
