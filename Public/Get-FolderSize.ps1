@@ -14,6 +14,10 @@
     Get-FolderSize -Path "C:\Users"
 
     Returns the size of all subdirectories in C:\Users.
+.EXAMPLE
+    Get-FolderSize | Sort-Object -Property SizeMB -Descending | Select-Object -First 5
+
+    Returns the five largest subdirectories in the current location.
 .NOTES
     - Size calculation includes all files in subdirectories
     - May be slow for large directory structures
@@ -21,20 +25,45 @@
 #>
 function Get-FolderSize {
     [CmdletBinding()]
+    [OutputType([PSCustomObject])]
     param(
-        [Parameter()]
-        $Path = (Get-Location).Fullname
+        [Parameter(Position=0, 
+                  HelpMessage="Path to examine for folder sizes")]
+        [ValidateScript({Test-Path $_})]
+        [string]
+        $Path = (Get-Location).FullName
     )
 
-    $Folders = Get-ChildItem -Path $Path -Directory
+    begin {
+        Set-StrictMode -Version 2
+    }
 
-    foreach($Folder in $Folders){
-        $Size = (Get-ChildItem -LiteralPath $Folder.Fullname -File -Recurse | Measure-Object -Sum -Property Length).Sum
-        $Object = [PSCustomObject]@{
-            SizeMB = [math]::Round($Size/1MB,2)
-            Name = $Folder.Name
-            Fullname = $Folder.Fullname
+    process {
+        try {
+            $Folders = Get-ChildItem -Path $Path -Directory -ErrorAction Stop
+
+            foreach($Folder in $Folders) {
+                try {
+                    $Size = (Get-ChildItem -LiteralPath $Folder.FullName -File -Recurse -ErrorAction Continue | 
+                             Measure-Object -Sum -Property Length).Sum
+                    
+                    # Handle case where no files were found (null sum)
+                    if ($null -eq $Size) { $Size = 0 }
+                    
+                    $Object = [PSCustomObject]@{
+                        SizeMB = [math]::Round($Size/1MB, 2)
+                        Name = $Folder.Name
+                        FullName = $Folder.FullName
+                    }
+                    Write-Output $Object
+                }
+                catch {
+                    Write-Warning "Error processing folder $($Folder.FullName): $_"
+                }
+            }
         }
-        Write-Output $Object
+        catch {
+            Write-Error "Error accessing path $Path`: $_"
+        }
     }
 }
