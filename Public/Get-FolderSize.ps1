@@ -3,67 +3,73 @@
     Gets the size of subdirectories in the specified path.
 .DESCRIPTION
     Calculates the size of each subdirectory in the specified path and returns
-    custom objects containing the name, size in MB, and full path.
+    custom objects containing the name, formatted sizes, and full path.
 .PARAMETER Path
-    The path to examine. Defaults to the current location.
+    The path to examine. Accepts pipeline input. Defaults to the current working location.
 .EXAMPLE
     Get-FolderSize
-
     Returns the size of all subdirectories in the current location.
 .EXAMPLE
-    Get-FolderSize -Path "C:\Users"
-
-    Returns the size of all subdirectories in C:\Users.
+    Get-ChildItem C:\Users -Directory | Get-FolderSize
+    Pipes directories directly into Get-FolderSize.
 .EXAMPLE
-    Get-FolderSize | Sort-Object -Property SizeMB -Descending | Select-Object -First 5
-
-    Returns the five largest subdirectories in the current location.
-.NOTES
-    - Size calculation includes all files in subdirectories
-    - May be slow for large directory structures
-    - Requires read permissions for all subdirectories
+    Get-FolderSize -Path "C:\Users" | Sort-Object SizeMB -Descending | Select-Object -First 5
+    Returns the five largest subdirectories in C:\Users.
 #>
 function Get-FolderSize {
     [CmdletBinding()]
     [OutputType([PSCustomObject])]
     param(
-        [Parameter(Position=0, 
-                  HelpMessage="Path to examine for folder sizes")]
-        [ValidateScript({Test-Path $_})]
-        [string]
-        $Path = (Get-Location).FullName
+        [Parameter(Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+        [ValidateScript({ Test-Path $_ })]
+        [string]$Path
     )
 
     begin {
-        Set-StrictMode -Version 2
+        Set-StrictMode -Version 2.0
     }
 
     process {
-        try {
-            $Folders = Get-ChildItem -Path $Path -Directory -ErrorAction Stop
+        # Fall back to current working directory if Path was not supplied
+        if (-not $PSBoundParameters.ContainsKey('Path')) {
+            $Path = (Get-Location).Path
+        }
 
-            foreach($Folder in $Folders) {
+        try {
+            $resolvedPath = Convert-Path -Path $Path -ErrorAction Stop
+            $folders = Get-ChildItem -LiteralPath $resolvedPath -Directory -ErrorAction Stop
+
+            foreach ($folder in $folders) {
                 try {
-                    $Size = (Get-ChildItem -LiteralPath $Folder.FullName -File -Recurse -ErrorAction Continue | 
-                             Measure-Object -Sum -Property Length).Sum
-                    
-                    # Handle case where no files were found (null sum)
-                    if ($null -eq $Size) { $Size = 0 }
-                    
-                    $Object = [PSCustomObject]@{
-                        SizeMB = [math]::Round($Size/1MB, 2)
-                        Name = $Folder.Name
-                        FullName = $Folder.FullName
+                    # Fast .NET enumeration to bypass pipeline overhead
+                    $dirInfo = [System.IO.DirectoryInfo]::new($folder.FullName)
+
+                    # Sum lengths of all files recursively; ignore unreadable files/folders
+                    $totalBytes = [int64]0
+                    $files = $dirInfo.EnumerateFiles('*', [System.IO.SearchOption]::AllDirectories)
+
+                    $enum = $files.GetEnumerator()
+                    while ($enum.MoveNext()) {
+                        $totalBytes += $enum.Current.Length
                     }
-                    Write-Output $Object
+
+                    [PSCustomObject]@{
+                        Name     = $folder.Name
+                        SizeMB   = [math]::Round($totalBytes / 1MB, 2)
+                        SizeBytes = $totalBytes
+                        FullName = $folder.FullName
+                    }
+                }
+                catch [System.UnauthorizedAccessException] {
+                    Write-Warning "Access denied reading files in '$($folder.FullName)'."
                 }
                 catch {
-                    Write-Warning "Error processing folder $($Folder.FullName): $_"
+                    Write-Warning "Error processing folder '$($folder.FullName)': $_"
                 }
             }
         }
         catch {
-            Write-Error "Error accessing path $Path`: $_"
+            Write-Error "Error accessing path '$Path': $_"
         }
     }
 }

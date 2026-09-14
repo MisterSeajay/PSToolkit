@@ -1,49 +1,55 @@
-<#
-.SYNOPSIS
-    Finds empty sub-folders under the specified path.
-.DESCRIPTION
-    Scans a folder hierarchy for any folders that do not contain
-    other files or folders. The results are returned as DirectoryInfo
-    objects.
-.PARAMETER Path
-    The root path to scan for empty folders. Defaults to current location.
-.PARAMETER Exclude
-    Path pattern to exclude from scanning.
-.EXAMPLE
-    Get-EmptyFolders
-    Returns all empty folders under the current location.
-.EXAMPLE
-    Get-EmptyFolders -Path "C:\Projects" -Exclude "*\node_modules\*"
-    Returns empty folders under C:\Projects, excluding any in node_modules folders.
-.NOTES
-    Author: MisterSeajay
-#>
 function Get-EmptyFolders {
     [CmdletBinding()]
     [OutputType([System.IO.DirectoryInfo])]
     param (
-        [Parameter(Position=0, 
-                  HelpMessage="Path to search for empty folders")]
-        [string]
-        $Path = (Get-Location),
-        
-        [Parameter(HelpMessage="Pattern to exclude from search")]
-        [string]
-        $Exclude = ""
+        [Parameter(Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true, HelpMessage = "Path to search for empty folders")]
+        [ValidateScript({ Test-Path $_ })]
+        [string]$Path,
+
+        [Parameter(HelpMessage = "Wildcard pattern to exclude from search")]
+        [string]$Exclude
     )
 
     begin {
-        Set-StrictMode -Version 2
+        Set-StrictMode -Version 2.0
     }
-    
-    process {
-        $Folders = Get-ChildItem -LiteralPath $Path -Directory -Recurse | 
-            Where-Object { $_.FullName -notlike $Exclude }
 
-        foreach($Folder in $Folders) {
-            if(($Folder.GetFiles().Count -eq 0) -and ($Folder.GetDirectories().count -eq 0)) {
-                Write-Output $Folder
+    process {
+        if (-not $PSBoundParameters.ContainsKey('Path')) {
+            $Path = (Get-Location).Path
+        }
+
+        try {
+            $resolvedPath = Convert-Path -LiteralPath $Path -ErrorAction Stop
+            $directories = Get-ChildItem -LiteralPath $resolvedPath -Directory -Recurse -ErrorAction Stop
+
+            foreach ($dir in $directories) {
+                # Check exclusion pattern if specified
+                if ($PSBoundParameters.ContainsKey('Exclude') -and [string]::IsNullOrWhiteSpace($Exclude) -eq $false) {
+                    if ($dir.FullName -like $Exclude) {
+                        continue
+                    }
+                }
+
+                try {
+                    # Fast .NET check: stops at 1st item instead of allocating array
+                    $dirInfo = [System.IO.DirectoryInfo]::new($dir.FullName)
+                    $hasContent = $dirInfo.EnumerateFileSystemInfos().GetEnumerator().MoveNext()
+
+                    if (-not $hasContent) {
+                        Write-Output $dirInfo
+                    }
+                }
+                catch [System.UnauthorizedAccessException] {
+                    Write-Warning "Access denied reading directory '$($dir.FullName)'."
+                }
+                catch {
+                    Write-Warning "Error processing directory '$($dir.FullName)': $_"
+                }
             }
+        }
+        catch {
+            Write-Error "Error scanning path '$Path': $_"
         }
     }
 }
