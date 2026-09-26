@@ -435,3 +435,9 @@ The README describes the project, installation, usage and development
 requirements. `Get-Help` describes the commands. They must not overlap — see
 1.4. `Tests/PSToolkit.tests.ps1` enforces the help rules, so help gaps fail the
 build rather than being discovered by a reader.
+
+`TODO.md` tracks deferred work: what is outstanding, what was deliberately not
+done and why, and which decisions are still open. Read it at the start of a
+session and update it when something lands or gets deferred — a decision made
+in conversation and not written down is lost. It is a working document, not
+documentation, so it does not belong in the README.
