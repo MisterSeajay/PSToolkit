@@ -34,8 +34,20 @@ $config.Output.Verbosity = 'Detailed'
 
 $result = Invoke-Pester -Configuration $config
 
-if ($result.FailedCount -gt 0) {
-    Write-Host "`nTest run failed: $($result.FailedCount) test(s) failed." -ForegroundColor Red
-} else {
-    Write-Host "`nAll $($result.TotalCount) tests passed successfully!" -ForegroundColor Green
+# A test file that cannot be parsed, or that fails during discovery, produces a
+# failed *container* rather than a failed test. Checking FailedCount alone reports
+# a broken suite as green.
+$FailureCount = $result.FailedCount + $result.FailedContainersCount + $result.FailedBlocksCount
+
+if ($FailureCount -gt 0) {
+    Write-Host "`nTest run failed: $($result.FailedCount) test(s), $($result.FailedContainersCount) container(s) failed to run, $($result.FailedBlocksCount) block(s)." -ForegroundColor Red
+
+    foreach ($container in $result.FailedContainers) {
+        Write-Host "  $($container.Item): $($container.ErrorRecord.Exception.Message)" -ForegroundColor Red
+    }
+
+    # Non-zero so a calling script or CI job fails too.
+    exit 1
 }
+
+Write-Host "`nAll $($result.TotalCount) tests passed successfully!" -ForegroundColor Green

@@ -25,22 +25,45 @@ param(
 )
 
 # -------------------------------------------------------------------------
-# Step 0: Run Pester tests for the module; exit on failures
-# -------------------------------------------------------------------------
-if (Get-Module -ListAvailable -Name Pester) {
-    Write-Host "Running Pester unit tests..." -ForegroundColor Cyan
-    $testResult = Invoke-Pester -Path (Join-Path $ModuleRoot "Tests") -PassThru
-    if ($testResult.FailedCount -gt 0) {
-        throw "Build aborted: $($testResult.FailedCount) test(s) failed."
-    }
-}
-
-# -------------------------------------------------------------------------
-# Step 1: Update .psd1 Manifest Exports using AST Parsing
+# Resolve paths up front. $ModuleRoot used to be assigned in Step 1, after
+# Step 0 referenced it, so the test step failed with a null Path.
 # -------------------------------------------------------------------------
 $ModuleRoot   = Split-Path -Parent $PSScriptRoot
 $PublicFolder = Join-Path -Path $ModuleRoot -ChildPath "Public"
 $ManifestPath = Join-Path -Path $ModuleRoot -ChildPath "PSToolkit.psd1"
+
+# -------------------------------------------------------------------------
+# Step 0: Run Pester tests for the module; exit on failures
+# -------------------------------------------------------------------------
+# Import Pester rather than merely listing it: [PesterConfiguration] cannot
+# resolve from a module that is available but not loaded, and that error is
+# non-terminating, so the test step was skipped while the build reported success.
+$pester = Import-Module Pester -MinimumVersion 5.0.0 -PassThru -ErrorAction SilentlyContinue
+
+if ($pester) {
+    Write-Host "Running Pester unit tests..." -ForegroundColor Cyan
+
+    $PesterConfig = [PesterConfiguration]::Default
+    $PesterConfig.Run.Path = Join-Path -Path $ModuleRoot -ChildPath "Tests"
+    $PesterConfig.Output.Verbosity = 'Normal'
+    $PesterConfig.Run.PassThru = $true
+    $testResult = Invoke-Pester -Configuration $PesterConfig
+
+    # A test file that cannot be parsed, or that fails during discovery, produces a
+    # failed *container* rather than a failed test. Checking FailedCount alone reports
+    # a broken suite as green and lets the build continue.
+    $FailureCount = $testResult.FailedCount + $testResult.FailedContainersCount + $testResult.FailedBlocksCount
+
+    if ($FailureCount -gt 0) {
+        throw "Build aborted: $($testResult.FailedCount) test(s) failed, $($testResult.FailedContainersCount) container(s) failed to run, $($testResult.FailedBlocksCount) block(s) failed."
+    }
+
+    Write-Host "All $($testResult.TotalCount) tests passed." -ForegroundColor Green
+}
+else {
+    Write-Warning "Pester 5+ not found; the test gate is being SKIPPED and this build is unverified."
+}
+# -------------------------------------------------------------------------
 
 if (Test-Path -Path $PublicFolder) {
     Write-Verbose "Parsing Public functions and aliases from: $PublicFolder"

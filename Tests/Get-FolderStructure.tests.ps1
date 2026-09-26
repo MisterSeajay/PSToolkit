@@ -18,7 +18,14 @@
 
     Context "Exclude follows the Get-ChildItem -Exclude convention" {
         BeforeAll {
+            # A disposable fixture under the temp path. Suppressed rather than renamed:
+            # creating throwaway test data is not a state change that needs -WhatIf.
+            # The suppression uses the positional category argument; the named
+            # Justification form throws "no overload for .ctor" when placed here.
             function New-TestTree {
+                [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+                    'PSUseShouldProcessForStateChangingFunctions', '')]
+                param()
                 $root = Join-Path ([System.IO.Path]::GetTempPath()) ("gfs-" + [System.Guid]::NewGuid().ToString("N"))
                 New-Item -ItemType Directory -Path $root -Force | Out-Null
                 New-Item -ItemType Directory -Path (Join-Path $root "keep") -Force | Out-Null
