@@ -14,6 +14,8 @@
 .NOTES
     - Creates variables in the Script scope without removing them later
     - Does not handle comments or complex INI structures
+.LINK
+    https://github.com/MisterSeajay/PSToolkit
 #>
 function Convert-IniFileToVariables {
     [CmdletBinding()]

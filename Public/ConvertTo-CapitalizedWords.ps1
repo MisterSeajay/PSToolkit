@@ -16,6 +16,8 @@
     Returns: Hello World
 .NOTES
     Author: MisterSeajay
+.LINK
+    https://github.com/MisterSeajay/PSToolkit
 #>
 function ConvertTo-CapitalizedWords {
     [CmdletBinding()]

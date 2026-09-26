@@ -1,4 +1,37 @@
 ﻿function Get-EmptyFolders {
+    <#
+    .SYNOPSIS
+        Finds directories that contain nothing at all.
+    .DESCRIPTION
+        Recursively scans a path and returns a System.IO.DirectoryInfo object for
+        every directory that holds neither files nor subdirectories. Emits nothing
+        when no empty directories are found.
+
+        Directories that cannot be read are skipped with a warning instead of
+        terminating the walk, so one protected subdirectory does not stop the scan.
+    .PARAMETER Path
+        The path to search. Accepts pipeline input, and must exist if supplied.
+        Defaults to the current location.
+    .PARAMETER Exclude
+        A wildcard pattern tested against each candidate's full path, for example
+        '*\AppData\*'. Candidates whose full path matches are skipped, which is
+        useful for pruning noisy trees. No pattern is applied by default.
+    .EXAMPLE
+        Get-EmptyFolders
+        Searches the current location and everything beneath it.
+    .EXAMPLE
+        Get-ChildItem C:\Projects -Directory | Get-EmptyFolders
+        Searches each project directory, taking Path from the pipeline.
+    .EXAMPLE
+        Get-EmptyFolders -Path C:\Projects -Exclude '*\node_modules\*'
+        Searches C:\Projects, skipping anything beneath a node_modules folder.
+    .NOTES
+        Returns objects to the pipeline, so the result can be filtered, counted or
+        piped elsewhere. Output is System.IO.DirectoryInfo, not FileInfo.
+        Requires read access to each directory; access denials surface as warnings.
+    .LINK
+        https://github.com/MisterSeajay/PSToolkit
+    #>
     [CmdletBinding()]
     [OutputType([System.IO.DirectoryInfo])]
     param (

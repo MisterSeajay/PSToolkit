@@ -15,6 +15,8 @@
 .EXAMPLE
     Get-FolderSize -Path "C:\Users" | Sort-Object SizeMB -Descending | Select-Object -First 5
     Returns the five largest subdirectories in C:\Users.
+.LINK
+    https://github.com/MisterSeajay/PSToolkit
 #>
 function Get-FolderSize {
     [CmdletBinding()]

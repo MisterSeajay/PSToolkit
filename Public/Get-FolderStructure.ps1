@@ -5,10 +5,32 @@
     .DESCRIPTION
         Displays a graphical directory tree. By default, both directories and files are shown.
         Use -Directory to output only folders, or -File to output only files.
+
+        The tree is written to the host with Write-Host rather than returned to the
+        pipeline, so it cannot be captured, piped or assigned. To work with the
+        structure as data, enumerate the filesystem yourself.
+    .PARAMETER Path
+        The directory to use as the tree root. Accepts pipeline input and must exist.
+        Defaults to the current location.
+    .PARAMETER Exclude
+        Names of directories and files to omit. Matching is exact, not wildcard, so a
+        name is omitted only on an exact case-insensitive match. Defaults to .venv,
+        venv, node_modules, .git, __pycache__, .pytest_cache, bin and obj.
+    .PARAMETER MaxDepth
+        How many levels below the root to render. The default renders the whole tree.
+    .PARAMETER Directory
+        Render directories only, omitting files. Cannot be combined with -File.
+    .PARAMETER File
+        Render files only. Directories are not descended into. Cannot be combined
+        with -Directory.
     .EXAMPLE
         Get-FolderStructure -Path . -Exclude ".venv", "node_modules", ".git"
     .EXAMPLE
         tree -Directory -MaxDepth 2
+    .NOTES
+        Also available as the alias 'tree'.
+    .LINK
+        https://github.com/MisterSeajay/PSToolkit
     #>
     [CmdletBinding(DefaultParameterSetName = 'All')]
     param(
