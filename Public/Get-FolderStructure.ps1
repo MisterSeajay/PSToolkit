@@ -13,8 +13,9 @@
         The directory to use as the tree root. Accepts pipeline input and must exist.
         Defaults to the current location.
     .PARAMETER Exclude
-        Names of directories and files to omit. Matching is exact, not wildcard, so a
-        name is omitted only on an exact case-insensitive match. Defaults to .venv,
+        One or more wildcard patterns matched against each item's name, not its
+        full path, following the Get-ChildItem -Exclude convention. A directory
+        that matches is pruned, so its contents are not walked. Defaults to .venv,
         venv, node_modules, .git, __pycache__, .pytest_cache, bin and obj.
     .PARAMETER MaxDepth
         How many levels below the root to render. The default renders the whole tree.

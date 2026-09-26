@@ -13,9 +13,10 @@
         The path to search. Accepts pipeline input, and must exist if supplied.
         Defaults to the current location.
     .PARAMETER Exclude
-        A wildcard pattern tested against each candidate's full path, for example
-        '*\AppData\*'. Candidates whose full path matches are skipped, which is
-        useful for pruning noisy trees. No pattern is applied by default.
+        One or more wildcard patterns matched against each candidate's name, not
+        its full path, following the Get-ChildItem -Exclude convention. Matching
+        directories are omitted from the results. No pattern is applied by
+        default.
     .EXAMPLE
         Get-EmptyFolders
         Searches the current location and everything beneath it.
@@ -23,8 +24,12 @@
         Get-ChildItem C:\Projects -Directory | Get-EmptyFolders
         Searches each project directory, taking Path from the pipeline.
     .EXAMPLE
-        Get-EmptyFolders -Path C:\Projects -Exclude '*\node_modules\*'
-        Searches C:\Projects, skipping anything beneath a node_modules folder.
+        Get-EmptyFolders -Path C:\Projects -Exclude 'node_modules', '.git'
+        Searches C:\Projects, omitting directories with either of those names at
+        any depth.
+    .EXAMPLE
+        Get-EmptyFolders -Path C:\Projects -Exclude '*Cache*'
+        Omits every directory whose name contains Cache, such as AppData\Local\Cache.
     .NOTES
         Returns objects to the pipeline, so the result can be filtered, counted or
         piped elsewhere. Output is System.IO.DirectoryInfo, not FileInfo.
@@ -39,8 +44,8 @@
         [ValidateScript({ Test-Path $_ })]
         [string]$Path,
 
-        [Parameter(HelpMessage = "Wildcard pattern to exclude from search")]
-        [string]$Exclude
+        [Parameter(HelpMessage = "Wildcard patterns matched against directory names to skip")]
+        [string[]]$Exclude
     )
 
     begin {
@@ -57,11 +62,10 @@
             $directories = Get-ChildItem -LiteralPath $resolvedPath -Directory -Recurse -ErrorAction Stop
 
             foreach ($dir in $directories) {
-                # Check exclusion pattern if specified
-                if ($PSBoundParameters.ContainsKey('Exclude') -and [string]::IsNullOrWhiteSpace($Exclude) -eq $false) {
-                    if ($dir.FullName -like $Exclude) {
-                        continue
-                    }
+                # Skip directories whose name matches an -Exclude pattern, using the
+                # same Get-ChildItem -Exclude convention as Get-FolderStructure.
+                if (testNameExcluded -Name $dir.Name -Pattern $Exclude) {
+                    continue
                 }
 
                 try {

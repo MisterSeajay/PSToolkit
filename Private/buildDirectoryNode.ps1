@@ -17,8 +17,8 @@ function buildDirectoryNode {
 
     $includeDirs = -not $File.IsPresent
     if ($includeDirs) {
-        $subDirs = $DirectoryItem.GetDirectories() | 
-            Where-Object { $Exclude -notcontains $_.Name } | 
+        $subDirs = $DirectoryItem.GetDirectories() |
+            Where-Object { -not (testNameExcluded -Name $_.Name -Pattern $Exclude) } |
             Sort-Object Name
 
         foreach ($dir in $subDirs) {
@@ -29,8 +29,8 @@ function buildDirectoryNode {
 
     $includeFiles = -not $Directory.IsPresent
     if ($includeFiles) {
-        $files = $DirectoryItem.GetFiles() | 
-            Where-Object { $Exclude -notcontains $_.Name } | 
+        $files = $DirectoryItem.GetFiles() |
+            Where-Object { -not (testNameExcluded -Name $_.Name -Pattern $Exclude) } |
             Sort-Object Name
 
         foreach ($file in $files) {
