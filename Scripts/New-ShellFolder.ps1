@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Creates a new shell folder in Windows Explorer.
 .DESCRIPTION

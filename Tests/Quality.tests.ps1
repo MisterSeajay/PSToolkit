@@ -1,4 +1,4 @@
-Describe "PSScriptAnalyzer Code Quality" {
+﻿Describe "PSScriptAnalyzer Code Quality" {
     BeforeAll {
         if (-not (Get-Module -ListAvailable -Name PSScriptAnalyzer)) {
             Set-ItResult -Skipped -Because "PSScriptAnalyzer module is not installed."

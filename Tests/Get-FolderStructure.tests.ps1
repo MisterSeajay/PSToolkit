@@ -1,4 +1,4 @@
-Describe "Get-FolderStructure" {
+﻿Describe "Get-FolderStructure" {
     BeforeAll {
         $RootFolder = Join-Path -Path $PSScriptRoot -ChildPath ".." | Convert-Path
         Import-Module (Join-Path $RootFolder "PSToolkit.psm1") -Force

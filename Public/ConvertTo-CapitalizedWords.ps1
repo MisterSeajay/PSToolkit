@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Capitalizes initial letters of words in a text string.
 .DESCRIPTION

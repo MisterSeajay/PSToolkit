@@ -1,0 +1,12 @@
+# Line endings: store LF in the repository, check out CRLF in the working tree.
+# Without this, line endings depend on each contributor's core.autocrlf setting.
+* text=auto eol=crlf
+
+# PowerShell sources are UTF-8 *with* a byte-order mark.
+# Windows PowerShell 5.1 reads BOM-less files as ANSI/Windows-1252, so without a
+# BOM any non-ASCII character (see Private/showTree.ps1) renders as mojibake.
+# The BOM is committed here rather than produced by working-tree-encoding, which
+# Git documents as not recommended and which complicates renormalisation.
+*.ps1  text
+*.psd1 text
+*.psm1 text

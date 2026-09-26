@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Runs the Pester test suite for PSToolkit.
 .DESCRIPTION

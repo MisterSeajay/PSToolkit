@@ -1,4 +1,4 @@
-Set-StrictMode -Version 2.0
+﻿Set-StrictMode -Version 2.0
 
 # Dot-source all Private and Public helper scripts
 foreach ($SubFolder in @('Private', 'Public')) {

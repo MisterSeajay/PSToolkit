@@ -1,4 +1,4 @@
-# Helper to construct nested hashtable tree nodes from filesystem paths
+﻿# Helper to construct nested hashtable tree nodes from filesystem paths
 function buildDirectoryNode {
     param(
         [System.IO.DirectoryInfo]$DirectoryItem,

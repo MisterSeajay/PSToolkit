@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Gets the size of subdirectories in the specified path.
 .DESCRIPTION

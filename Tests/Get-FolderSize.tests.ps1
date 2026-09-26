@@ -1,4 +1,4 @@
-Describe "Get-FolderSize" {
+﻿Describe "Get-FolderSize" {
     BeforeAll {
         $RootFolder = Join-Path -Path $PSScriptRoot -ChildPath ".." | Convert-Path
         Import-Module (Join-Path $RootFolder "PSToolkit.psm1") -Force

@@ -1,4 +1,4 @@
-function Get-EmptyFolders {
+﻿function Get-EmptyFolders {
     [CmdletBinding()]
     [OutputType([System.IO.DirectoryInfo])]
     param (

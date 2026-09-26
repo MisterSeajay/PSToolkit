@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Converts an INI file's contents to script-scoped variables.
 .DESCRIPTION

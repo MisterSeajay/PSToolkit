@@ -1,4 +1,4 @@
-function GLOBAL:prompt {
+﻿function GLOBAL:prompt {
     $host.UI.RawUI.WindowTitle = "$(Get-Location)"
 
     $width = $host.ui.rawui.WindowSize.Width

@@ -1,4 +1,4 @@
-function Get-FolderStructure {
+﻿function Get-FolderStructure {
     <#
     .SYNOPSIS
         Generates a custom visual folder tree structure with exclusion support.

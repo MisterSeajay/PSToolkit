@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Builds the PSToolkit module, updates its manifest exports, and copies it to a specified output path.
 .DESCRIPTION

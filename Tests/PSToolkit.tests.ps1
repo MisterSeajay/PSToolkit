@@ -1,4 +1,4 @@
-Describe "PSToolkit Module Infrastructure" {
+﻿Describe "PSToolkit Module Infrastructure" {
     BeforeAll {
         $RootFolder = Join-Path -Path $PSScriptRoot -ChildPath ".." | Convert-Path
         $ManifestPath = Join-Path -Path $RootFolder -ChildPath "PSToolkit.psd1"
