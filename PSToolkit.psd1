@@ -12,6 +12,7 @@
     FunctionsToExport = @(
         'Convert-IniFileToVariables',
         'ConvertTo-CapitalizedWords',
+        'Format-Tree',
         'Get-EmptyFolders',
         'Get-FolderSize',
         'Get-FolderStructure'

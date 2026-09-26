@@ -1,39 +1,52 @@
 ﻿function Get-FolderStructure {
     <#
     .SYNOPSIS
-        Generates a custom visual folder tree structure with exclusion support.
+        Returns a directory hierarchy as objects, one per item.
     .DESCRIPTION
-        Displays a graphical directory tree. By default, both directories and files are shown.
-        Use -Directory to output only folders, or -File to output only files.
+        Walks a path and emits an object for the root directory and every item
+        beneath it, with a Depth property recording each item's level. The result
+        is designed to be piped: filter it, select from it, or hand it to
+        Format-Tree to draw the hierarchy.
 
-        The tree is written to the host with Write-Host rather than returned to the
-        pipeline, so it cannot be captured, piped or assigned. To work with the
-        structure as data, enumerate the filesystem yourself.
+        Directories are emitted before files at each level, each group sorted by
+        name. Nothing is written to the host, so the output can be captured,
+        filtered or counted like any other object.
+
+        To see a drawn tree, pipe to Format-Tree, or use the 'tree' alias.
     .PARAMETER Path
-        The directory to use as the tree root. Accepts pipeline input and must exist.
-        Defaults to the current location.
+        The directory to use as the tree root. Accepts pipeline input and must
+        exist. Defaults to the current location.
     .PARAMETER Exclude
         One or more wildcard patterns matched against each item's name, not its
         full path, following the Get-ChildItem -Exclude convention. A directory
-        that matches is pruned, so its contents are not walked. Defaults to .venv,
-        venv, node_modules, .git, __pycache__, .pytest_cache, bin and obj.
+        that matches is pruned, so its contents are not walked. Defaults to
+        .venv, venv, node_modules, .git, __pycache__, .pytest_cache, bin and obj.
     .PARAMETER MaxDepth
-        How many levels below the root to render. The default renders the whole tree.
+        How many levels below the root to emit. The default emits the whole tree;
+        1 emits the root alone.
     .PARAMETER Directory
-        Render directories only, omitting files. Cannot be combined with -File.
+        Emit directories only, omitting files. Cannot be combined with -File.
     .PARAMETER File
-        Render files only. Directories are not descended into. Cannot be combined
-        with -Directory.
+        Emit files only, omitting directories. Cannot be combined with -Directory.
     .EXAMPLE
-        Get-FolderStructure -Path . -Exclude ".venv", "node_modules", ".git"
+        Get-FolderStructure -Path C:\Projects
+        Returns an object per directory and file, with Depth populated.
     .EXAMPLE
-        tree -Directory -MaxDepth 2
+        Get-FolderStructure -Path C:\Projects -Directory -MaxDepth 2
+        Returns only the root and its immediate child directories.
+    .EXAMPLE
+        tree
+        Draws the current location as a tree. The 'tree' alias is an alias for
+        Format-Tree, so this is shorthand for:
+        Get-FolderStructure | Format-Tree
     .NOTES
-        Also available as the alias 'tree'.
+        Each object carries Name, FullName, Depth and PSIsContainer. Directory
+        names carry no trailing separator; add one when presenting a container.
     .LINK
         https://github.com/MisterSeajay/PSToolkit
     #>
     [CmdletBinding(DefaultParameterSetName = 'All')]
+    [OutputType([PSCustomObject])]
     param(
         [Parameter(Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
         [System.String]$Path = '.',
@@ -53,18 +66,20 @@
     )
 
     begin {
+        Set-StrictMode -Version 2.0
+
         # Process legacy cmd flags if passed via alias
         if ($LegacyArgs) {
             foreach ($arg in $LegacyArgs) {
                 switch -Regex ($arg) {
-                    '^/F$' { 
+                    '^/F$' {
                         # /F in cmd.exe means show files (default behavior)
                     }
-                    '^/A$' { 
+                    '^/A$' {
                         # /A in cmd.exe means ASCII characters (ignored)
                     }
-                    default { 
-                        Write-Warning "Unrecognized legacy option '$arg' ignored." 
+                    default {
+                        Write-Warning "Unrecognized legacy option '$arg' ignored."
                     }
                 }
             }
@@ -80,11 +95,8 @@
             return
         }
 
-        Write-Host "$($rootItem.Name)/" -ForegroundColor Yellow
-
-        $treeData = buildDirectoryNode -DirectoryItem $rootItem
-        showTree -Node $treeData -MaxDepth $MaxDepth
+        getTreeNodes -DirectoryItem $rootItem -Depth 0 -MaxDepth $MaxDepth -Exclude $Exclude `
+            -IncludeDirectories (-not $File.IsPresent) `
+            -IncludeFiles (-not $Directory.IsPresent)
     }
 }
-
-Set-Alias -Name tree -Value Get-FolderStructure -Description "PSToolkit visual folder tree replacement"

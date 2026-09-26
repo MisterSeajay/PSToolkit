@@ -354,6 +354,12 @@ PSToolkit.psm1   loader; dot-sources Private/ then Public/
 Only `Public/` is the module. `Scripts/` is not exported and is not covered by
 the module's contract — do not treat the two as interchangeable.
 
+**The module separates data from presentation.** `Get-`-style functions return
+objects; `Format-Tree` is the only thing that writes a rendered tree to the host.
+When adding a command, decide which side of that line it belongs on before writing
+it, because the two halves have different testing needs: data can be asserted
+directly, whereas host output has to be captured from the information stream.
+
 ## 2.3 Commands
 
 ```powershell
@@ -386,13 +392,23 @@ PSScriptAnalyzer are needed only for development, not to consume the module.
 
 ## 2.5 Traps specific to this repository
 
-- **`Private/buildDirectoryNode.ps1` uses dynamic scoping.** `buildDirectoryNode`
-  reads `$Exclude`, `$File`, `$Directory` and `$MaxDepth` from
-  `Get-FolderStructure`'s scope without declaring them as parameters. This is
-  the 1.9 anti-pattern, kept because it works and is under test. It is a known
-  exception, not a pattern to copy. Converting it to explicit parameters is a
-  fair future change. `showTree` does *not* do this — it declares `Node`,
-  `Indent`, `CurrentDepth` and `MaxDepth` properly.
+- **The dynamic-scoping trap described in 1.9 has been fixed here.**
+  `Get-FolderStructure` used to delegate to a private helper that read `$Exclude`,
+  `$File`, `$Directory` and `$MaxDepth` straight out of its caller's scope. Traversal
+  now lives in `Private/getTreeNodes.ps1`, which takes all of them as explicit
+  parameters. If you add a private helper, pass its inputs; do not rely on the
+  caller's variables being visible.
+- **`Get-FolderStructure` returns objects; `Format-Tree` draws them.** The split is
+  deliberate: the data function pipes and filters, the renderer owns `Write-Host`.
+  The `tree` alias points at `Format-Tree`, not at `Get-FolderStructure`, so that
+  `tree` and `tree <path>` keep printing a tree. If you add a renderer, preserve that
+  alias behaviour.
+- **Sibling "lastness" in `Format-Tree` is subtle and was wrong twice.** Two plausible
+  shortcuts fail: comparing only the next node breaks for a node with children,
+  because the next node is its own child; comparing depths across the whole sequence
+  breaks because two nodes at the same depth in different subtrees are not siblings.
+  It needs the stack-based forward pass that is there now, and
+  `Tests/Format-Tree.tests.ps1` pins both cases.
 - **`Build-Module.ps1` updates the root `PSToolkit.psd1` and copies `*.ps1`
   only.** It writes no per-function manifests, and it does not copy `LICENSE` or
   the `Tests/` folder into the output. `LicenseUri` is a GitHub URL, so it still
