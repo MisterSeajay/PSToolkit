@@ -30,7 +30,7 @@
             Tags         = @('PowerShell', 'Toolkit')
             LicenseUri   = 'https://github.com/MisterSeajay/PSToolkit/blob/main/LICENSE'
             ProjectUri   = 'https://github.com/MisterSeajay/PSToolkit'
-            ReleaseNotes = 'https://github.com/MisterSeajay/PSToolkit/wiki'
+            ReleaseNotes = 'https://github.com/MisterSeajay/PSToolkit/blob/main/README.md'
         }
     }
 }
