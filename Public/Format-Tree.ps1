@@ -25,7 +25,9 @@
         Convenience for a one-shot draw: resolves the hierarchy with
         Get-FolderStructure and renders the result. Equivalent to
         Get-FolderStructure -Path <Path> | Format-Tree. This is what the 'tree'
-        alias uses.
+        alias uses. Defaults to the current location, so a bare 'tree' draws the
+        directory you are standing in. Ignored when nodes arrive on the pipeline,
+        which take precedence.
     .PARAMETER Exclude
         Wildcard patterns to exclude by name, used only with -Path. Forwarded to
         Get-FolderStructure.
@@ -49,6 +51,11 @@
         Directories are drawn with a trailing separator and in a different colour
         from files. A node whose Name is empty, such as a drive root, falls back
         to its FullName.
+
+        With neither pipeline input nor -Path, the current location is drawn.
+        PowerShell cannot distinguish an empty pipeline from no pipeline, so a
+        pipeline that yields nothing also draws the current location rather than
+        nothing. To draw an empty result, check the count before piping.
     .LINK
         https://github.com/MisterSeajay/PSToolkit
     #>
@@ -88,12 +95,26 @@
     }
 
     process {
-        if ($PSCmdlet.ParameterSetName -eq 'FromPath') {
+        if ($null -ne $InputObject) {
+            [void]$script:Nodes.Add($InputObject)
+        }
+    }
+
+    end {
+        # Nothing arrived on the pipeline, so draw the hierarchy instead of
+        # nothing. This is what makes a bare `tree` work: without it, an unbound
+        # -Path and an empty pipeline are the same case, and the command it
+        # replaces its name from would print the directory you are standing in.
+        if ($script:Nodes.Count -eq 0) {
             $Splat = @{
-                Path     = $Path
                 Exclude  = $Exclude
                 MaxDepth = $MaxDepth
             }
+            # Omit Path entirely when it was not bound, so that Get-FolderStructure
+            # applies its own default of the current location. Assigning '.' here
+            # would be equivalent today, but would hard-code a second default that
+            # the two commands could then drift apart on.
+            if ($PSBoundParameters.ContainsKey('Path')) { $Splat['Path'] = $Path }
             if ($Directory) { $Splat['Directory'] = $true }
             if ($File) { $Splat['File'] = $true }
 
@@ -101,12 +122,7 @@
                 [void]$script:Nodes.Add($node)
             }
         }
-        elseif ($null -ne $InputObject) {
-            [void]$script:Nodes.Add($InputObject)
-        }
-    }
 
-    end {
         if ($script:Nodes.Count -eq 0) {
             return
         }
@@ -191,7 +207,7 @@
             }
 
             while ($LastAtDepth.Count -le $depth) {
-                $LastAtDepth.Add($true)
+                [void]$LastAtDepth.Add($true)
             }
             $LastAtDepth[$depth] = $nodeIsLast
         }

@@ -12,6 +12,11 @@ Rules for this file:
 Guidance for the project lives in `AGENTS.md`; cmdlet detail lives in
 `Get-Help`. Neither duplicates what is tracked here.
 
+`AGENTS.md` no longer has a repository-specific section, and it now says a
+deliberate exception is recorded in `README.md`. So this file is no longer
+pointed at from anywhere: nothing tells a future session to read it. Needs a
+decision — see below.
+
 ## Documentation
 
 - [ ] **Rewrite the README.** It is still the original two lines, so the repo
@@ -20,6 +25,37 @@ Guidance for the project lives in `AGENTS.md`; cmdlet detail lives in
       development requirements, and points at `Get-Help` for parameter
       detail. Done when a reader can install the module and run their first
       command from the README alone.
+
+- [ ] **Decide where a future session is pointed at this file.** `AGENTS.md`
+      2.6 used to say "read TODO.md at the start of a session"; that section
+      has been rewritten and the pointer is gone. The new `AGENTS.md` says a
+      deliberate exception belongs in `README.md`, which is a different thing:
+      a README is read by users, and this list is not for them. Options: add a
+      short contributor note back, move the deferred-work items into
+      `AGENTS.md`, or accept that this file is only found by opening it.
+
+## Rules the code does not yet meet
+
+Found by auditing the code against the rewritten `AGENTS.md`, not by a failure.
+
+- [ ] **Five public functions accept pipeline input but have no `end` block.**
+      `AGENTS.md` 1.2 now requires explicit `begin` / `process` / `end` on any
+      function taking `ValueFromPipeline`, because a function body with no
+      sections only sees the last pipeline object. Missing from
+      `Convert-IniFileToVariables`, `ConvertTo-CapitalizedWords`,
+      `Get-EmptyFolders`, `Get-FolderSize` and `Get-FolderStructure`. All five
+      currently work, because each is invoked with one object at a time or
+      aggregates outside the loop — but that is luck, not design. Mechanical
+      fix, worth doing as its own change so a diff stays reviewable.
+
+- [ ] **`Convert-IniFileToVariables` is a modifying command with no
+      `-WhatIf`.** It creates variables in the caller's session, and
+      `AGENTS.md` 1.2 requires `SupportsShouldProcess` for anything that
+      modifies state. Whether creating a session variable counts as "modifying
+      disk, registry, or network state" is a judgement call, so it is recorded
+      rather than assumed either way. The `-WhatIf:$false` currently passed to
+      `New-Variable` is a side effect of that question and goes away if the
+      answer is yes.
 
 ## Tooling gaps
 

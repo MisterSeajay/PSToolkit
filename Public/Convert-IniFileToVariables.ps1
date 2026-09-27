@@ -1,19 +1,40 @@
 ﻿<#
 .SYNOPSIS
-    Converts an INI file's contents to script-scoped variables.
+    Converts an INI file's contents to PowerShell variables.
 .DESCRIPTION
-    Reads an INI file and creates a script-scoped variable for each key-value pair.
+    Reads an INI file and creates a variable for each key-value pair, in the
+    scope given by -Scope. Section headers are ignored, and lines whose first
+    non-blank character is ';' or '#' are treated as comments and skipped.
+
+    A key is used as the variable name verbatim, so a key that is not a legal
+    PowerShell identifier produces a warning and is skipped rather than
+    aborting the file.
 .PARAMETER Path
     The path to the INI file to process.
+.PARAMETER Scope
+    The PowerShell scope to create the variables in. Defaults to Global.
+
+    Global is the default rather than a nicety: a function inside a module runs in
+    the module's own scope, so -Scope Script and -Scope Local create the
+    variables where the caller cannot see them, and where they disappear when the
+    module is unloaded. Global is the only value that makes the variables visible
+    to the caller, which is the whole point of the command. The other two are
+    offered because they are the right choice in some host modules, but expect
+    them to be invisible from a normal caller.
 .EXAMPLE
-    Convert-IniFileToVariables -Path "C:\config.ini"
-    # If config.ini contains "Name=Value", a $Name variable with "Value" will be created.
+    Convert-IniFileToVariables -Path .\config.ini
+    Creates a variable per key in the global scope, so a file containing
+    "Port=8080" leaves $Port set to '8080'.
 .EXAMPLE
-    "C:\config.ini" | Convert-IniFileToVariables
-    # Process the INI file via pipeline input.
+    ".\config.ini" | Convert-IniFileToVariables
+    Process the INI file via pipeline input.
 .NOTES
-    - Creates variables in the Script scope without removing them later
-    - Does not handle comments or complex INI structures
+    Variables are created with -Force, so an existing writable variable of the
+    same name is overwritten. A key that names a read-only automatic variable,
+    such as 'Host' or 'PID', cannot be overwritten even with -Force: that line is
+    reported as a warning and skipped, and the rest of the file still loads. Key
+    names are not otherwise sanitised, so keep that in mind before pointing this
+    at an untrusted file.
 .LINK
     https://github.com/MisterSeajay/PSToolkit
 #>
@@ -23,15 +44,19 @@ function Convert-IniFileToVariables {
     param(
         [Parameter(Mandatory=$true,
                   Position=0,
-                  ValueFromPipeline=$true,
-                  HelpMessage="Path to the INI file to process")]
+                  ValueFromPipeline=$true)]
         [ValidateScript({Test-Path $_ -PathType Leaf})]
         [string]
-        $Path
+        $Path,
+
+        [Parameter(Position=1)]
+        [ValidateSet('Global','Script','Local')]
+        [string]
+        $Scope = 'Global'
     )
 
     begin {
-        Set-StrictMode -Version 2
+        Set-StrictMode -Version 2.0
     }
     
     process {
@@ -41,11 +66,23 @@ function Convert-IniFileToVariables {
             $Content | Select-String -SimpleMatch "=" | ForEach-Object {
                 try {
                     $Line = $_.ToString()
+
+                    # A comment may still contain '=', so comments are dropped here
+                    # rather than by the filter above. Without this, '; Port=8080'
+                    # would try to create a variable named '; Port'.
+                    if ($Line.TrimStart().StartsWith(';') -or $Line.TrimStart().StartsWith('#')) {
+                        return
+                    }
+
                     $Name = ($Line -split('=', 2))[0].Trim()
                     $Value = ($Line -split('=', 2))[1].Trim()
                     
                     if (-not [string]::IsNullOrWhiteSpace($Name)) {
-                        New-Variable -Scope Script -Name $Name -Value $Value -Force -WhatIf:$false
+                        # -ErrorAction Stop is what makes the catch above reachable.
+                        # A read-only name such as Host is a non-terminating error, so
+                        # without it the raw error record escapes and a caller running
+                        # with -ErrorAction Stop loses the rest of the file.
+                        New-Variable -Scope $Scope -Name $Name -Value $Value -Force -WhatIf:$false -ErrorAction Stop
                         Write-Verbose "Created variable: $Name = $Value"
                     }
                 }

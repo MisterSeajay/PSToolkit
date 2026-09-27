@@ -109,9 +109,27 @@
             $lines[4] | Should -Be "$($script:Blank)$($script:Last)b1/"
         }
 
-        It "Draws nothing when given no input" {
-            $lines = Get-RenderedLines -Nodes @()
-            $lines.Count | Should -Be 0
+        It "Falls back to the current location when given no input" {
+            # A bare Format-Tree has to draw something: the 'tree' alias is only
+            # worth having if `tree` on its own replaces the command it borrows
+            # its name from. This replaces an earlier expectation of no output,
+            # which was the reason bare `tree` printed nothing at all.
+            $root = New-TestTree
+            $here = Get-Location
+            try {
+                Push-Location -Path $root
+                $lines = @((Format-Tree 6>&1) | ForEach-Object { [string]$_ })
+                Pop-Location
+                $lines.Count | Should -BeGreaterThan 1
+                # Built into a variable first: inline, `Should -Be (expr) + '/'`
+                # lets PowerShell hand the '+' to Pester as a -Because reason.
+                $expectedRoot = (Split-Path -Path $root -Leaf) + '/'
+                $lines[0] | Should -Be $expectedRoot
+            }
+            finally {
+                Set-Location -Path $here
+                Remove-Item -Path $root -Recurse -Force -ErrorAction SilentlyContinue
+            }
         }
     }
 
@@ -174,6 +192,25 @@
                 ($viaAlias -join "`n") | Should -Be ($viaFunction -join "`n")
             }
             finally {
+                Remove-Item -Path $root -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It "Draws the current location when given no arguments at all" {
+            # The cmd.exe-compatibility case, and the one the alias exists for.
+            # Regression test: with no default for -Path this produced no output.
+            $root = New-TestTree
+            $here = Get-Location
+            try {
+                Push-Location -Path $root
+                $bare = @((tree 6>&1) | ForEach-Object { [string]$_ })
+                $viaPath = @((Format-Tree -Path $root 6>&1) | ForEach-Object { [string]$_ })
+                Pop-Location
+                $bare.Count | Should -BeGreaterThan 1
+                ($bare -join "`n") | Should -Be ($viaPath -join "`n")
+            }
+            finally {
+                Set-Location -Path $here
                 Remove-Item -Path $root -Recurse -Force -ErrorAction SilentlyContinue
             }
         }
