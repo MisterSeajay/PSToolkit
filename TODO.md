@@ -23,12 +23,13 @@ Guidance for the project lives in `AGENTS.md`; cmdlet detail lives in
 
 ## Tooling gaps
 
-- [ ] **`Invoke-Pester.ps1` exits 0 when Pester is absent.** It calls
-      `Write-Error` and returns, but never `exit 1`, so a CI job reads a
-      skipped suite as a pass. This is the exact failure `AGENTS.md` 1.8 warns
-      about: "do not gate on a check that can be skipped silently." Done when
-      a missing Pester produces a non-zero exit code, and there is a test
-      proving it.
+- [x] **`Invoke-Pester.ps1` exited 0 on every run.** It never set
+      `Run.PassThru`, so Pester returned `$null`, every count read as `0`, and a
+      failing suite was reported as a pass. It also wrote errors without a
+      non-zero exit when Pester was absent. Both fixed, and
+      `Tests/PSToolkit.tests.ps1` now runs the real runner against deliberately
+      failing, unparseable and module-less sandboxes to prove it. See the bug
+      list below.
 
 - [ ] **`Build-Module.ps1` builds anyway when Pester is absent.** It warns
       loudly, which satisfies half the rule, but still produces an unverified
@@ -84,6 +85,12 @@ Guidance for the project lives in `AGENTS.md`; cmdlet detail lives in
 Kept because each one was invisible until something forced it into the open,
 and each is now covered by a test.
 
+- **The test gate never failed anything.** `Invoke-Pester.ps1` did not set
+  `Run.PassThru`, so Pester 6 returned `$null`; the failure total read as `0`
+  and the runner printed "All tests passed" and exited 0 on a failing suite.
+  Found because a new test failed and the runner still reported success. This
+  means every earlier claim that the gate had been repaired was wrong: the
+  failure-counting fix was real, but it was reading `$null`.
 - `Build-Module.ps1` used `$ModuleRoot` before assigning it, so the build
   script failed on its first statement.
 - The Pester gate probed with `Get-Module -ListAvailable`, which lists without
@@ -95,3 +102,7 @@ and each is now covered by a test.
   breaks for a node with children, and "no later node shares my depth" breaks
   because nodes at equal depth in different subtrees are not siblings. Both
   are pinned by `Tests/Format-Tree.tests.ps1`.
+- An empty `PSModulePath` does not disable module discovery, so the first
+  version of the "Pester unavailable" test passed without ever reaching the
+  branch it claimed to cover. It now points at a non-existent directory, and
+  was found to hang the child process before being fixed.

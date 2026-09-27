@@ -293,6 +293,20 @@ fixtures in a function and call it from the test body, or use a plain loop.
 session, or the type does not resolve and the configuration silently becomes
 `$null`.
 
+**A test runner must be able to fail, and you must watch it do so.** Pester 5
+and later only return a result object when `Run.PassThru` is `$true`, which is
+not the default. Without it `Invoke-Pester` returns `$null`, every count on the
+result is `$null`, the total reads as `0`, and the runner cheerfully reports a
+failing suite as a pass. Set `PassThru`, treat a `$null` result as a failure
+rather than a pass, and then prove the whole thing by running the runner against
+a suite that is meant to fail and asserting a non-zero exit code. A gate that
+has never been observed failing is not a gate.
+
+Asserting only "exits non-zero" is weaker than it looks: a runner that exits
+non-zero for *any* reason satisfies it. Also assert that the success case exits
+zero, and assert on the message, or a runner broken in some other way passes
+the test.
+
 **Test behaviour, not implementation.** For `Write-Host` output, capture the
 information stream: `(Get-Example 6>&1 | Out-String)`.
 
@@ -311,6 +325,17 @@ deliberately undocumented, so a new undocumented parameter still fails.
   `Build-Node -Item $dir` that then reads `$MaxDepth` from the function that
   called it will work, be invisible in its own signature, and break silently on
   refactor. Pass such values as explicit parameters.
+- **An empty `PSModulePath` does not mean "no modules".** PowerShell reads
+  `$env:PSModulePath = ''` as "use the defaults", so `Import-Module Pester`
+  still succeeds. A test that clears it to simulate a missing module passes
+  without ever reaching the branch it is meant to cover. Point it at a
+  directory that does not exist instead, and assert the module really is gone.
+- **A double quote inside a string passed to a native command is eaten.** To
+  pass `PSModulePath = ""` to `powershell.exe -Command`, the argument parser
+  consumes the quotes and the child sees a single `"`, producing a parse error
+  that looks like a bug in the code under test. Build the child script as a
+  file and pass it with `-File`; that also avoids deadlocks seen when changing
+  `PSModulePath` through `-Command`.
 - **`-eq` against an array filters instead of returning a boolean.**
   `@('a','b','c') -eq 'b'` returns a one-element array containing `b`, and any
   non-empty array is truthy, so `if ($array -eq 'x')` is true whenever *any*

@@ -138,4 +138,114 @@
             }
         }
     }
+
+    Context "Test runner exit codes" {
+        # A test runner communicates through its exit code. A caller that checks
+        # $LASTEXITCODE, or a CI job, cannot see anything written to the error
+        # stream, so a runner that reports a problem and then exits 0 is
+        # indistinguishable from one that passed.
+        #
+        # These tests exist because that failure is invisible. A gate that never
+        # fails is green forever, and every commit that relies on it looks fine.
+        BeforeAll {
+            $RunnerPath = Join-Path $RootFolder "Scripts\Invoke-Pester.ps1"
+
+            # The current PowerShell executable, so the child runs the same engine.
+            $PowerShellExe = (Get-Process -Id $PID).Path
+
+            # Builds a throwaway module root containing the real runner and a Tests
+            # folder holding the supplied test body, then runs the runner over it.
+            # The runner derives its root from its own location, so relocating it is
+            # what points it at a different suite; no test-only parameter is needed.
+            #
+            # Supplying -ModulePath routes the run through a harness that replaces
+            # PSModulePath first, which is the only way tested here to make Pester
+            # genuinely undiscoverable.
+            function Invoke-RunnerInSandbox {
+                param(
+                    [string]$TestBody,
+                    [string]$ModulePath
+                )
+
+                $sandbox = Join-Path ([System.IO.Path]::GetTempPath()) ("pstk-runner-" + [guid]::NewGuid().ToString('N'))
+                $scripts = Join-Path $sandbox "Scripts"
+                $tests = Join-Path $sandbox "Tests"
+                New-Item -ItemType Directory -Path $scripts, $tests -Force | Out-Null
+                Copy-Item -Path $RunnerPath -Destination $scripts -Force
+                Set-Content -Path (Join-Path $tests "sandbox.tests.ps1") -Value $TestBody
+
+                try {
+                    $runner = Join-Path $scripts "Invoke-Pester.ps1"
+                    $entry = $runner
+
+                    if ($ModulePath) {
+                        # A harness file rather than -Command: a double quote inside a
+                        # string handed to a native exe is consumed by the argument
+                        # parser, and setting PSModulePath to '' through -Command hangs
+                        # the child. -File with a real script avoids both.
+                        #
+                        # Assembled by concatenation rather than as a here-string: a
+                        # here-string terminator must start at column 0, which cannot be
+                        # done legibly inside a nested function.
+                        $nl = [Environment]::NewLine
+                        $q = [char]39
+                        $harness = '$env:PSModulePath = ' + $q + $ModulePath + $q + $nl +
+                                   '& ' + $q + $runner + $q + $nl +
+                                   'exit $LASTEXITCODE'
+                        $entry = Join-Path $sandbox "harness.ps1"
+                        Set-Content -Path $entry -Value $harness
+                    }
+
+                    $output = & $PowerShellExe -NoProfile -File $entry 2>&1
+                    # Read immediately: nothing may run between the native call and this.
+                    $code = $LASTEXITCODE
+                    return [PSCustomObject]@{ ExitCode = $code; Output = ($output | Out-String) }
+                }
+                finally {
+                    Remove-Item -Path $sandbox -Recurse -Force -ErrorAction SilentlyContinue
+                }
+            }
+        }
+
+        It "Should exit zero when every test passes" {
+            $run = Invoke-RunnerInSandbox "Describe 'Deliberately passing' { It 'passes' { 1 | Should -Be 1 } }"
+            $run.ExitCode | Should -Be 0
+            $run.Output | Should -Match 'tests passed'
+        }
+
+        It "Should exit non-zero when a test fails" {
+            # The central case. If this passes, the gate detects a real failure.
+            $run = Invoke-RunnerInSandbox "Describe 'Deliberately failing' { It 'fails' { 1 | Should -Be 2 } }"
+            $run.ExitCode | Should -Not -Be 0
+        }
+
+        It "Should not claim success when a test fails" {
+            $run = Invoke-RunnerInSandbox "Describe 'Deliberately failing' { It 'fails' { 1 | Should -Be 2 } }"
+            $run.Output | Should -Not -Match 'All \d+ tests passed'
+            $run.Output | Should -Match 'Test run failed'
+        }
+
+        It "Should exit non-zero when a test file cannot be parsed" {
+            # A file that fails to parse produces a failed container, not a failed
+            # test, so it is reported through FailedContainersCount. Counting only
+            # FailedCount would read this as a clean run with zero tests.
+            $run = Invoke-RunnerInSandbox "Describe 'Unclosed' {"
+            $run.ExitCode | Should -Not -Be 0
+        }
+
+        It "Should exit non-zero when Pester is unavailable" {
+            Test-Path -Path $RunnerPath | Should -Be $true
+
+            # A module path that contains no modules, not an empty PSModulePath.
+            # PowerShell reads an empty PSModulePath as "use the defaults" and
+            # finds Pester anyway, so that variant reaches the full suite instead
+            # of the branch under test and would pass for the wrong reason.
+            $run = Invoke-RunnerInSandbox `
+                        -TestBody "Describe 'Deliberately passing' { It 'passes' { 1 | Should -Be 1 } }" `
+                        -ModulePath "C:\pstk-no-such-module-path"
+
+            $run.ExitCode | Should -Not -Be 0 -Because "a skipped test run is not a pass"
+            $run.Output | Should -Match 'unverified' -Because "the failure should say the run proved nothing"
+        }
+    }
 }
