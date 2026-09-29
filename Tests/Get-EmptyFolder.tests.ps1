@@ -1,4 +1,4 @@
-﻿Describe "Get-EmptyFolders" {
+﻿Describe "Get-EmptyFolder" {
     BeforeAll {
         $RootFolder = Join-Path -Path $PSScriptRoot -ChildPath ".." | Convert-Path
         Import-Module (Join-Path $RootFolder "PSToolkit.psm1") -Force
@@ -31,7 +31,7 @@
         It "Returns a DirectoryInfo for each empty directory" {
             $root = New-TestTree
             try {
-                $result = @(Get-EmptyFolders -Path $root)
+                $result = @(Get-EmptyFolder -Path $root)
                 $names = @($result | ForEach-Object { $_.Name })
                 $names | Should -Contain "empty-one"
                 $names | Should -Contain "empty-two"
@@ -44,7 +44,7 @@
         It "Does not report directories that contain a file" {
             $root = New-TestTree
             try {
-                $names = @(Get-EmptyFolders -Path $root | ForEach-Object { $_.Name })
+                $names = @(Get-EmptyFolder -Path $root | ForEach-Object { $_.Name })
                 $names | Should -Not -Contain "notempty"
             }
             finally {
@@ -55,7 +55,7 @@
         It "Returns DirectoryInfo objects so results can be piped onward" {
             $root = New-TestTree
             try {
-                @(Get-EmptyFolders -Path $root) | Should -BeOfType [System.IO.DirectoryInfo]
+                @(Get-EmptyFolder -Path $root) | Should -BeOfType [System.IO.DirectoryInfo]
             }
             finally {
                 Remove-Item -Path $root -Recurse -Force -ErrorAction SilentlyContinue
@@ -67,7 +67,7 @@
         It "Accepts multiple patterns and omits matching names" {
             $root = New-TestTree
             try {
-                $names = @(Get-EmptyFolders -Path $root -Exclude 'empty-one', 'empty-two' | ForEach-Object { $_.Name })
+                $names = @(Get-EmptyFolder -Path $root -Exclude 'empty-one', 'empty-two' | ForEach-Object { $_.Name })
                 $names | Should -Not -Contain "empty-one"
                 $names | Should -Not -Contain "empty-two"
             }
@@ -79,7 +79,7 @@
         It "Supports wildcard patterns rather than requiring an exact name" {
             $root = New-TestTree
             try {
-                $names = @(Get-EmptyFolders -Path $root -Exclude 'empty-*' | ForEach-Object { $_.Name })
+                $names = @(Get-EmptyFolder -Path $root -Exclude 'empty-*' | ForEach-Object { $_.Name })
                 $names | Should -Not -Contain "empty-one"
                 $names | Should -Not -Contain "empty-two"
             }
@@ -93,7 +93,7 @@
             try {
                 # 'node_modules' is a name, so it matches. A path-shaped pattern
                 # containing directory separators must not be required.
-                $names = @(Get-EmptyFolders -Path $root -Exclude 'node_modules' | ForEach-Object { $_.Name })
+                $names = @(Get-EmptyFolder -Path $root -Exclude 'node_modules' | ForEach-Object { $_.Name })
                 $names | Should -Not -Contain "node_modules"
             }
             finally {
@@ -104,7 +104,7 @@
         It "Excludes nothing when no pattern is supplied" {
             $root = New-TestTree
             try {
-                @(Get-EmptyFolders -Path $root | ForEach-Object { $_.Name }) | Should -Contain "empty-one"
+                @(Get-EmptyFolder -Path $root | ForEach-Object { $_.Name }) | Should -Contain "empty-one"
             }
             finally {
                 Remove-Item -Path $root -Recurse -Force -ErrorAction SilentlyContinue

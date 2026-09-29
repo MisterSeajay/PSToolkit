@@ -1,4 +1,4 @@
-﻿function Get-EmptyFolders {
+﻿function Get-EmptyFolder {
     <#
     .SYNOPSIS
         Finds directories that contain nothing at all.
@@ -18,17 +18,17 @@
         directories are omitted from the results. No pattern is applied by
         default.
     .EXAMPLE
-        Get-EmptyFolders
+        Get-EmptyFolder
         Searches the current location and everything beneath it.
     .EXAMPLE
-        Get-ChildItem C:\Projects -Directory | Get-EmptyFolders
+        Get-ChildItem C:\Projects -Directory | Get-EmptyFolder
         Searches each project directory, taking Path from the pipeline.
     .EXAMPLE
-        Get-EmptyFolders -Path C:\Projects -Exclude 'node_modules', '.git'
+        Get-EmptyFolder -Path C:\Projects -Exclude 'node_modules', '.git'
         Searches C:\Projects, omitting directories with either of those names at
         any depth.
     .EXAMPLE
-        Get-EmptyFolders -Path C:\Projects -Exclude '*Cache*'
+        Get-EmptyFolder -Path C:\Projects -Exclude '*Cache*'
         Omits every directory whose name contains Cache, such as AppData\Local\Cache.
     .NOTES
         Returns objects to the pipeline, so the result can be filtered, counted or

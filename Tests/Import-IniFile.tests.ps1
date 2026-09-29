@@ -1,4 +1,4 @@
-﻿Describe "Convert-IniFileToVariables" {
+﻿Describe "Import-IniFile" {
     BeforeAll {
         $RootFolder = Join-Path -Path $PSScriptRoot -ChildPath ".." | Convert-Path
         $ModulePath = Join-Path $RootFolder "PSToolkit.psm1"
@@ -45,7 +45,7 @@
             $q = $script:Quote
             $nameList = ($Names | ForEach-Object { $q + $_ + $q }) -join ', '
 
-            $body = 'Convert-IniFileToVariables -Path ' + $q + $IniPath + $q + $nl +
+            $body = 'Import-IniFile -Path ' + $q + $IniPath + $q + $nl +
                     'foreach ($n in @(' + $nameList + ')) {' + $nl +
                     '    $v = Get-Variable -Name $n -Scope ' + $Scope + ' -ErrorAction SilentlyContinue' + $nl +
                     '    if ($v) { $n + ' + $q + '=' + $q + ' + $v.Value } else { $n + ' + $q + '=<unset>' + $q + ' }' + $nl +
@@ -119,7 +119,7 @@
             try {
                 $nl = [Environment]::NewLine
                 $q = $script:Quote
-                $body = 'Convert-IniFileToVariables -Path ' + $q + $ini + $q + ' -Scope Script' + $nl +
+                $body = 'Import-IniFile -Path ' + $q + $ini + $q + ' -Scope Script' + $nl +
                         '$inCaller = Get-Variable -Name Port -Scope Script -ErrorAction SilentlyContinue' + $nl +
                         '$inModule = Get-Module PSToolkit | ForEach-Object { & $_ { Get-Variable -Name Port -Scope Script -ErrorAction SilentlyContinue } }' + $nl +
                         '"caller=$([bool]$inCaller) module=$([bool]$inModule)"'
@@ -141,7 +141,7 @@
             try {
                 $nl = [Environment]::NewLine
                 $q = $script:Quote
-                $body = 'Convert-IniFileToVariables -Path ' + $q + $ini + $q + ' -WarningVariable warn' + $nl +
+                $body = 'Import-IniFile -Path ' + $q + $ini + $q + ' -WarningVariable warn' + $nl +
                         '"hostType=$($Host.GetType().Name)"' + $nl +
                         '"port=$Port"' + $nl +
                         '"warned=$([bool]$warn)"'
@@ -159,7 +159,7 @@
         It "Rejects a scope it does not support" {
             $ini = New-IniFile -Lines @('Port=8080')
             try {
-                { Convert-IniFileToVariables -Path $ini -Scope 'Nowhere' } | Should -Throw
+                { Import-IniFile -Path $ini -Scope 'Nowhere' } | Should -Throw
             }
             finally {
                 Remove-IniFile -Path $ini
@@ -172,7 +172,7 @@
                 $nl = [Environment]::NewLine
                 $q = $script:Quote
                 $body = '$Port = ' + $q + 'original' + $q + $nl +
-                        'Convert-IniFileToVariables -Path ' + $q + $ini + $q + $nl +
+                        'Import-IniFile -Path ' + $q + $ini + $q + $nl +
                         '$Port'
                 $out = Invoke-InChildSession -Body $body
                 $out | Should -Match '9999'
@@ -188,7 +188,7 @@
                 $q = $script:Quote
                 # Quoted, because a bare path at the start of a statement is parsed as a
                 # command name and PowerShell tries to run the .ini file.
-                $body = $q + $ini + $q + ' | Convert-IniFileToVariables' + [Environment]::NewLine +
+                $body = $q + $ini + $q + ' | Import-IniFile' + [Environment]::NewLine +
                         '$v = Get-Variable -Name Port -Scope Global -ErrorAction SilentlyContinue' + [Environment]::NewLine +
                         'if ($v) { $v.Value }'
                 $out = Invoke-InChildSession -Body $body
@@ -243,7 +243,7 @@
 
         It "Errors when the file does not exist" {
             $missing = Join-Path ([System.IO.Path]::GetTempPath()) ("ini-missing-" + [System.Guid]::NewGuid().ToString("N") + ".ini")
-            { Convert-IniFileToVariables -Path $missing } | Should -Throw
+            { Import-IniFile -Path $missing } | Should -Throw
         }
     }
 }

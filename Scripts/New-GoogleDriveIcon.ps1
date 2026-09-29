@@ -65,7 +65,7 @@ function newGoogleDriveIcon{
         $GoogleDrivePath = "$($env:USERPROFILE)\Google Drive"
     )
 
-    Convert-IniFileToVariables -Path "$GoogleDrivePath\desktop.ini"
+    Import-IniFile -Path "$GoogleDrivePath\desktop.ini"
 
     Write-Warning "Adding entries to registry"
     Write-Debug "HKEY_CURRENT_USER\Software\Classes\CLSID\{$clsid}"

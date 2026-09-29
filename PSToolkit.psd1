@@ -10,12 +10,12 @@
 
     # Explicit exports speed up module auto-discovery and import performance
     FunctionsToExport = @(
-        'Convert-IniFileToVariables',
-        'ConvertTo-CapitalizedWords',
+        'ConvertTo-TitleCase',
         'Format-Tree',
-        'Get-EmptyFolders',
+        'Get-EmptyFolder',
         'Get-FolderSize',
-        'Get-FolderStructure'
+        'Get-FolderStructure',
+        'Import-IniFile'
     )
 
     AliasesToExport   = @(

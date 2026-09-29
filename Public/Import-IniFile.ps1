@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Converts an INI file's contents to PowerShell variables.
+    Imports an INI file's key-value pairs as PowerShell variables.
 .DESCRIPTION
     Reads an INI file and creates a variable for each key-value pair, in the
     scope given by -Scope. Section headers are ignored, and lines whose first
@@ -9,6 +9,9 @@
     A key is used as the variable name verbatim, so a key that is not a legal
     PowerShell identifier produces a warning and is skipped rather than
     aborting the file.
+
+    The variables are the result, and nothing is written to the pipeline. A file
+    containing "Port=8080" leaves $Port set to '8080' once the command returns.
 .PARAMETER Path
     The path to the INI file to process.
 .PARAMETER Scope
@@ -22,11 +25,11 @@
     offered because they are the right choice in some host modules, but expect
     them to be invisible from a normal caller.
 .EXAMPLE
-    Convert-IniFileToVariables -Path .\config.ini
+    Import-IniFile -Path .\config.ini
     Creates a variable per key in the global scope, so a file containing
     "Port=8080" leaves $Port set to '8080'.
 .EXAMPLE
-    ".\config.ini" | Convert-IniFileToVariables
+    ".\config.ini" | Import-IniFile
     Process the INI file via pipeline input.
 .NOTES
     Variables are created with -Force, so an existing writable variable of the
@@ -38,7 +41,7 @@
 .LINK
     https://github.com/MisterSeajay/PSToolkit
 #>
-function Convert-IniFileToVariables {
+function Import-IniFile {
     [CmdletBinding()]
     [OutputType([void])]
     param(

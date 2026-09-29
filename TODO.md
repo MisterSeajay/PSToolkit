@@ -124,11 +124,35 @@ Found by auditing the code against the rewritten `AGENTS.md`, not by a failure.
   keep updating the source but re-apply the explicit empty arrays and comments
   afterwards; or drop the derivation and treat the manifest as hand-maintained.
 
-- [ ] **The lint gate is `-Severity Error` only.** The repo has 0 errors and
+- [x] **The lint gate is `-Severity Error` only.** The repo has 0 errors and
   32 warnings. Most are Pester `BeforeAll` false positives
   (`PSUseDeclaredVarsMoreThanAssignments`), which are noise. Decide whether
   to fix the real ones and raise the gate, or record a baseline count that
   must not increase. Needs a decision.
+
+  Broken down by folder first: only 3 of the 33 were in code a user installs
+  (`Public/` and `Private/`), and all 3 were `PSUseSingularNouns` on three
+  command names. The other 30 were in `Tests/`, `Scripts/` and a shell
+  profile. Holding the whole repository to Warning would have meant fixing
+  Pester's own false positives to keep the module honest, so the gate is now
+  two-tier: Error across the repository, Warning across `Public/` and
+  `Private/` only.
+
+  The three plural nouns were renamed instead of allowlisted, which took that
+  count to zero, so the Warning gate needs **no allowlist at all**. See the
+  renames below.
+
+  `Tests/Quality.tests.ps1` also used to skip silently when PSScriptAnalyzer
+  was absent, via `Set-ItResult -Skipped`. Per 1.8 that is precisely the case
+  where a skipped check must announce itself, since a run that linted nothing
+  reads identically to a run that linted everything. It now warns loudly and
+  names the install command.
+
+  Verified both directions: 62/62 green on clean code, and red naming
+  `Get-EmptyFolder.ps1:L52 [PSUseDeclaredVarsMoreThanAssignments]` when a
+  warning is injected into shipped code. The first version of that test was
+  red for the wrong reason, because `Invoke-ScriptAnalyzer -Path` is a
+  `[string]` and rejects the array of folders.
 
 - [x] **Markdown linting was documented but not gated.** `AGENTS.md` requires
   markdownlint-cli2 and the repo is clean under it, but nothing enforced it:
@@ -168,6 +192,26 @@ Found by auditing the code against the rewritten `AGENTS.md`, not by a failure.
   flags. Needs a decision.
 
 ## Housekeeping
+
+- [x] **Renamed three commands whose plural nouns were the only lint
+  warnings in shipped code.** `ConvertTo-CapitalizedWords` became
+  `ConvertTo-TitleCase`, which is the standard name for the operation and
+  describes the output (`The Quick Brown-Fox` is title case);
+  `Convert-IniFileToVariables` became `Import-IniFile`, naming the input the
+  way `Import-Csv` does and using an approved verb that means "bring in";
+  `Get-EmptyFolders` became `Get-EmptyFolder`, matching the singular-noun
+  convention that `Get-Process` and `Get-ChildItem` already follow.
+
+  No back-compat aliases were kept. The module has never been published to the
+  Gallery, so there are no installed copies to break, and carrying three
+  aliases for names nobody has shipped would be clutter in a manifest whose
+  whole point is being explicit about what it exports. Say so here in case
+  that reasoning is wrong: adding them back is a manifest entry each.
+
+  Files, functions, test files, manifest and docs all renamed. 61 tests still
+  pass and `Test-ModuleManifest` still validates. Both renamed functions had
+  help that described the old verb, so their synopses were rewritten and every
+  claim in the new help was checked against a real run.
 
 - [x] Default branch is `main`; `master` removed. Attribution is the
   `MisterSeajay` alias only.

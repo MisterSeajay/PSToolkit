@@ -1,25 +1,30 @@
 ﻿<#
 .SYNOPSIS
-    Capitalizes initial letters of words in a text string.
+    Converts text to title case, capitalising the first letter of each word.
 .DESCRIPTION
-    Capitalizes initial letters of words, where words in the string
-    can be separated by spaces, hyphens or other non-alphanumeric
-    characters (i.e. "word boundary" characters). The function tries
-    to un-capitalize letters following apostrophes within words.
+    Capitalizes the first letter of each word, where words in the string are
+    separated by spaces, hyphens or other non-alphanumeric characters (that is,
+    by "word boundary" characters). Letters following an apostrophe within a
+    word are un-capitalized, so "o'brien" becomes "O'brien" rather than
+    "O'Brien".
+
+    This is title case rather than sentence case: it capitalizes every word, not
+    just the first one.
 .PARAMETER Text
-    The input text string to be capitalized.
+    The text to convert. Accepts pipeline input.
 .EXAMPLE
-    ConvertTo-CapitalizedWords -Text "hello-world"
+    ConvertTo-TitleCase -Text "hello-world"
     Returns: Hello-World
 .EXAMPLE
-    "hello world" | ConvertTo-CapitalizedWords
+    "hello world" | ConvertTo-TitleCase
     Returns: Hello World
 .NOTES
-    Author: MisterSeajay
+    Hyphens are treated as word boundaries and preserved, so a hyphenated
+    compound gets both halves capitalised: "well-known" becomes "Well-Known".
 .LINK
     https://github.com/MisterSeajay/PSToolkit
 #>
-function ConvertTo-CapitalizedWords {
+function ConvertTo-TitleCase {
     [CmdletBinding()]
     [OutputType([String])]
     param (

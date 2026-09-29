@@ -51,8 +51,8 @@ the full layout and the conventions behind it.
 | `Get-FolderStructure` | Returns a directory hierarchy as objects, one per item. |
 | `Get-EmptyFolder` | Finds directories that contain nothing at all. |
 | `Get-FolderSize` | Gets the size of subdirectories in the specified path. |
-| `Import-IniFile` | Converts an INI file's contents to PowerShell variables. |
-| `ConvertTo-TitleCase` | Capitalizes initial letters of words in a text string. |
+| `Import-IniFile` | Imports an INI file's key-value pairs as PowerShell variables. |
+| `ConvertTo-TitleCase` | Converts text to title case, capitalising the first letter of each word. |
 
 `tree` is an alias for `Format-Tree`, so it is a drop-in replacement for the
 cmd.exe `tree` command, including `tree` on its own for the current directory.
@@ -147,7 +147,7 @@ Port=8080
 names a read-only automatic variable such as `Host` cannot be assigned even with
 `-Force`: that line warns and is skipped, and the rest of the file still loads.
 
-### Capitalize words
+### Convert to title case
 
 ```powershell
 ConvertTo-TitleCase -Text "the quick brown-fox"
@@ -156,6 +156,10 @@ ConvertTo-TitleCase -Text "the quick brown-fox"
 ```text
 The Quick Brown-Fox
 ```
+
+Words are split on any non-alphanumeric character, so hyphens are preserved and
+both halves of a compound are capitalised. A letter after an apostrophe is not,
+so `o'brien` becomes `O'brien`.
 
 ## Help
 
