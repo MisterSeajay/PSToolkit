@@ -15,6 +15,14 @@
 .EXAMPLE
     Get-FolderSize -Path "C:\Users" | Sort-Object SizeMB -Descending | Select-Object -First 5
     Returns the five largest subdirectories in C:\Users.
+.NOTES
+    One result per subdirectory of -Path. Files sitting directly in -Path are
+    not counted anywhere, because there is no result row that could report them.
+
+    SizeMB is rounded to two decimal places, so it reads 0 for any directory
+    under about 5,243 bytes. An empty directory and a merely small one are
+    therefore indistinguishable by SizeMB alone; sort by SizeBytes, which is
+    exact, and 0 there does mean empty.
 .LINK
     https://github.com/MisterSeajay/PSToolkit
 #>

@@ -106,16 +106,31 @@ if (Test-Path -Path $PublicFolder) {
     $FunctionsToExport = $DiscoveredFunctions | Sort-Object -Unique
     $AliasesToExport   = $DiscoveredAliases | Sort-Object -Unique
 
+    # This module is a script module: everything lives in Public/ as a function, so
+    # there are no cmdlets to export and no module-scope variables to publish.
+    # Declared rather than left undefined so the conditional splat below has
+    # something defined to test under Set-StrictMode.
+    $CmdletsToExport   = @()
+    $VariablesToExport = @()
+
     Write-Verbose "Found $( $FunctionsToExport.Count ) functions and $( $AliasesToExport.Count ) aliases to export."
 
     # Update manifest in source root before copying
+    #
+    # Only non-empty export lists are passed. Update-ModuleManifest validates its
+    # parameters and rejects an empty collection - "the argument is null, empty, or
+    # an element contains a null value" - so passing @() for a list with nothing
+    # in it aborts the build. The manifest already spells out explicit empty
+    # arrays for the lists this module does not export, and omitting a parameter
+    # leaves the existing value alone.
     $UpdateParams = @{
         Path              = $ManifestPath
         FunctionsToExport = $FunctionsToExport
-        AliasesToExport   = if ($AliasesToExport) { $AliasesToExport } else { @() }
-        VariablesToExport = @()
-        CmdletsToExport   = @()
     }
+
+    if ($AliasesToExport)   { $UpdateParams['AliasesToExport']   = $AliasesToExport }
+    if ($CmdletsToExport)   { $UpdateParams['CmdletsToExport']   = $CmdletsToExport }
+    if ($VariablesToExport) { $UpdateParams['VariablesToExport'] = $VariablesToExport }
 
     Update-ModuleManifest @UpdateParams
     Write-Verbose "Updated $ManifestPath with latest exports."

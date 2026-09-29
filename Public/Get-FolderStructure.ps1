@@ -42,6 +42,10 @@
     .NOTES
         Each object carries Name, FullName, Depth and PSIsContainer. Directory
         names carry no trailing separator; add one when presenting a container.
+
+        The root directory is always emitted, even under -File, so that the result
+        keeps an anchor and Format-Tree can draw a shape. -File and -Directory
+        filter everything below the root.
     .LINK
         https://github.com/MisterSeajay/PSToolkit
     #>
