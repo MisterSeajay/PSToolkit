@@ -10,3 +10,8 @@
 *.ps1  text
 *.psd1 text
 *.psm1 text
+
+# Git hooks are interpreted by sh, and the shebang is the first line. A CR
+# before the LF makes it "#!/bin/sh^M", which sh cannot find, so the hook fails
+# on every commit or is silently skipped. LF is not negotiable here.
+.githooks/* text eol=lf

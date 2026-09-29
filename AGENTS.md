@@ -3,6 +3,57 @@
 When a rule and existing code disagree, fix the code. Record any deliberate
 exception in README.md rather than quietly violating the rule.
 
+## Documentation
+
+**Lint Markdown files with markdownlint-cli2** (npm package). The rules live in
+`.markdownlint.json` at the repository root, so run the linter with no extra
+flags:
+
+```powershell
+markdownlint-cli2 "**/*.md"
+```
+
+The config, not this section, is the contract. The settings that are easy to
+trip over:
+
+- Unordered lists use a dash, never an asterisk.
+- Code blocks are fenced and tagged with a language, never indented.
+- Lines wrap at 120 characters, except inside code blocks and tables.
+- The first line of a file is its top-level heading.
+- A heading may repeat under a different parent, but not twice under one parent.
+
+Two reasons the config is a file rather than a set of command-line flags: every
+contributor and every CI job then lints against the same rules, and a rule that
+lives only in one person's shell history is not a rule.
+
+### The pre-commit hook
+
+`.githooks/pre-commit` runs the linter over the staged Markdown, so a rule is
+checked before it can be committed rather than discovered later. It is
+POSIX `sh`, not PowerShell, because that is what git executes on every platform
+including Windows.
+
+Enable it once per clone:
+
+```powershell
+git config core.hooksPath .githooks
+```
+
+`core.hooksPath` is local configuration and is not committed, so a fresh clone
+does not get the hook until someone runs that. Say so when you hand the
+repository to someone; an enabled-by-default assumption that is actually
+off by default is worse than no hook.
+
+**A missing linter fails the commit.** The hook does not fall through to a
+warning, because per 1.8 a check that is skipped silently is not a check. If
+markdownlint-cli2 is absent the hook says so, names the install command and
+points at `git commit --no-verify` as the deliberate bypass.
+
+**`.githooks/*` is pinned to LF in `.gitattributes`.** The shebang is the
+first line, and a CR before its LF makes it a path `sh` cannot resolve. The
+repository-wide `eol=crlf` rule would otherwise break the hook on Windows, so
+the exception is required rather than cosmetic.
+
 ## PowerShell guidelines
 
 ### 1.1 Encoding and line endings
@@ -29,7 +80,6 @@ Keep Markdown, JSON and other data files as UTF-8 *without* a BOM.
 *.ps1  text eol=crlf
 *.psm1 text eol=crlf
 *.psd1 text eol=crlf
-
 ```
 
 Without explicit line ending definitions, a file's line endings depend on whatever
@@ -43,10 +93,9 @@ BOMs and line endings. Use explicit encodings:
 $text = [System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8)
 $text =$text -replace "(?<!`r)`n", "`r`n"
 [System.IO.File]::WriteAllText($path, $text, [System.Text.UTF8Encoding]::new($true))
-
 ```
 
-Note the `$true`: it emits the BOM. The parameterless `UTF8` does not, and will
+Note the `$true`: it emits the BOM. The parameter-less `UTF8` does not, and will
 strip one.
 
 **Detect encoding before editing a file programmatically.** UTF-16 appears with
@@ -75,6 +124,16 @@ the wrong text. Use `[string]::Replace($old, $new)`, or escape as `$$`.
 **Use approved verbs, and Verb-Noun naming.** Check with `Get-Verb`. Public
 functions are `Verb-Noun`; private helpers may be `camelCase`.
 
+**The verb MUST come from the `Get-Verb` list.** It is a hard requirement, not a
+preference: an unapproved verb does not sort, does not get its own `-Verb`
+parameter set in `Get-Command`, and is invisible to anything driven by
+discovery. `Get-Verb -Name Split` returning nothing means the name is wrong.
+
+**The noun SHOULD be a short, high-level object,** and the parts of that object
+belong in parameters, not in separate functions. `Get-FolderSize -Directory`
+covers the directories; `Get-SizeOfDirectoryInFolder` is not a better design,
+it is a command nobody can guess.
+
 **Name the file after the function it contains**, so a function called
 `Get-Report` lives in a file called `Get-Report.ps1`.
 
@@ -96,7 +155,6 @@ function Get-Example {
     }
     end { }
 }
-
 ```
 
 Placing `[CmdletBinding()]` *inside* the `param()` parentheses makes it a
@@ -105,7 +163,10 @@ per-parameter attribute. It is then silently ignored: the function gets no
 no error is raised. A test that only checks the function runs will not catch it —
 assert that `$func.Parameters.ContainsKey('Verbose')`.
 
-**Always use `process` blocks when accepting pipeline input.** Functions accepting `ValueFromPipeline` or `ValueFromPipelineByPropertyName` must use explicit `begin`, `process`, and `end` blocks. Executing code in an un-sectioned function body only processes the final pipeline object.
+**Always use `process` blocks when accepting pipeline input.** Functions
+accepting `ValueFromPipeline` or `ValueFromPipelineByPropertyName` must use
+explicit `begin`, `process`, and `end` blocks. Executing code in an
+un-sectioned function body only processes the final pipeline object.
 
 **Always declare a type for every parameter.** Untyped parameters become
 `[object]`, which forces casts downstream.
@@ -118,7 +179,7 @@ fail at parameter binding, with a message that names the parameter.
 A parameter with a default is never `$null`; `$PSBoundParameters` distinguishes
 "caller passed this" from "caller did not".
 
-**Use `[switch]` for booleans, and `ParameterSetName` for modes.** A
+**Use `[switch]` for Booleans, and `ParameterSetName` for modes.** A
 `[switch]$Directory` is unambiguous on the command line; a `[bool]$Directory`
 accepts `$false`, which is almost never what the user meant. Mutually exclusive
 modes belong in separate parameter sets so the binding engine rejects the
@@ -130,10 +191,12 @@ param(
     [Parameter(ParameterSetName = 'DirectoryOnly')][switch]$Directory,
     [Parameter(ParameterSetName = 'FileOnly')][switch]$File
 )
-
 ```
 
-**Support `-WhatIf` and `-Confirm` on modifying commands.** Any cmdlet modifying disk, registry, or network state must declare `[CmdletBinding(SupportsShouldProcess = $true)]` and wrap changes in `if ($PSCmdlet.ShouldProcess($target, $action))`.
+**Support `-WhatIf` and `-Confirm` on modifying commands.** Any cmdlet
+modifying disk, registry, or network state must declare
+`[CmdletBinding(SupportsShouldProcess = $true)]` and wrap changes in
+`if ($PSCmdlet.ShouldProcess($target, $action))`.
 
 **Use `Set-StrictMode -Version 2.0**` in modules and scripts. It turns typos and
 unset variables into errors instead of silent `$null`.
@@ -144,7 +207,9 @@ unset variables into errors instead of silent `$null`.
 count the result. A function that returns a pre-formatted string cannot be
 composed.
 
-**Prevent accidental pipeline pollution.** Any unassigned expression evaluated inside a function leaks onto the output pipeline stream. Explicitly suppress method results:
+**Prevent accidental pipeline pollution.** Any unassigned expression evaluated
+inside a function leaks onto the output pipeline stream. Explicitly suppress
+method results:
 
 ```powershell
 # Bad: $list.Add() returns the index integer to the pipeline
@@ -154,13 +219,20 @@ $list.Add($item)
 [void]$list.Add($item)
 # OR
 $null = $list.Add($item)
-
 ```
 
 **Reserve `Write-Host` for messages addressed to a person.** It writes to the
 host, not the pipeline, so the output cannot be piped, assigned, or asserted on
 in a test. A tree-drawing command is a legitimate use — but document it, and
 expect to capture it in tests with `6>&1`.
+
+**Use the stream that matches the audience for everything else.** Diagnostics go
+to `Write-Verbose` and `Write-Debug`, never to `Write-Host`. `-Verbose` is the
+caller asking to see more, which is exactly what `Write-Verbose` is for, and
+`[CmdletBinding()]` wires it up for free. Long-running progress that a user may
+want to see but a pipeline should not receive goes to `Write-Information`,
+captured with `6>&1`. A `Write-Host` diagnostic is invisible to
+`-Verbose:$false`, unsuppressible, and untestable.
 
 **Return `[System.IO.DirectoryInfo]` / `[FileInfo]`, not strings**, and declare
 `[OutputType()]` so consumers can discover it.
@@ -194,12 +266,12 @@ deliberately; do not set a `HelpUri` that does not actually resolve.
 
 If you write tooling or tests that inspect help, note:
 
-* `GetHelpContent()` returns **null** on the file-level `ScriptBlockAst`. Call it
+- `GetHelpContent()` returns **null** on the file-level `ScriptBlockAst`. Call it
 on the `FunctionDefinitionAst`.
-* `CommentHelpInfo.Parameters` is a `Dictionary[String, String]`, not a
+- `CommentHelpInfo.Parameters` is a `Dictionary[String, String]`, not a
 collection of objects. Read names from `.Keys` — `.Parameters.Parameter` is
 `$null`, and `@($null)` looks like a one-element list with an empty name.
-* The parser **upper-cases** those keys, and the dictionary is case-sensitive on
+- The parser **upper-cases** those keys, and the dictionary is case-sensitive on
 lookup. Normalise before indexing, or compare case-insensitively.
 
 ### 1.5 Behave like the cmdlet you are imitating
@@ -210,11 +282,11 @@ than a differently named one.
 
 `Get-ChildItem -Exclude` is the reference for exclusion parameters:
 
-* patterns are **wildcards**, tested against the item's **name** (the leaf), not
+- patterns are **wildcards**, tested against the item's **name** (the leaf), not
 its full path
-* matching is case-insensitive
-* a directory that matches is **pruned**, not descended into
-* it takes one or more patterns
+- matching is case-insensitive
+- a directory that matches is **pruned**, not descended into
+- it takes one or more patterns
 
 `Get-ChildItem -ExcludePath` does **not** exist in Windows PowerShell 5.1, so do
 not design against it unless the module declares a higher minimum version.
@@ -228,7 +300,10 @@ the two cannot drift apart.
 **Ship a `.psd1` manifest and a `.psm1` loader.** The manifest is the contract;
 keep it valid by asserting `Test-ModuleManifest` passes.
 
-**Disallow wildcards in manifest exports.** Set explicit arrays for `CmdletsToExport`, `FunctionsToExport`, `VariablesToExport`, and `AliasesToExport` in the manifest rather than wildcard `*`. Wildcards slow down module auto-loading performance.
+**Disallow wildcards in manifest exports.** Set explicit arrays for
+`CmdletsToExport`, `FunctionsToExport`, `VariablesToExport`, and
+`AliasesToExport` in the manifest rather than wildcard `*`. Wildcards slow down
+module auto-loading performance.
 
 **Dot-source `Private/` then `Public/**` so definitions are available regardless
 of alphabetical order:
@@ -239,7 +314,6 @@ foreach ($sub in @('Private', 'Public')) {
     Get-ChildItem -Path (Join-Path $PSScriptRoot $sub) -Filter '*.ps1' -File |
         ForEach-Object { . $_.FullName }
 }
-
 ```
 
 **Derive `FunctionsToExport` from the `Public/` folder** using the AST, and write
@@ -258,14 +332,14 @@ disposable. Make this explicit so nobody edits the generated copy.
 
 ### 1.7 Error handling
 
-* **`throw` for programmer errors** — a bad argument the caller controls is
+- **`throw` for programmer errors** — a bad argument the caller controls is
 usually a binding-time failure via validation attributes; use `Write-Error` for
 runtime conditions.
-* **Set `-ErrorAction Stop` inside `try**` when you intend to `catch`. Without
+- **Set `-ErrorAction Stop` inside `try**` when you intend to `catch`. Without
 it, a non-terminating error does not enter the block.
-* **Never swallow an exception.** An empty `catch` hides the failure. If
+- **Never swallow an exception.** An empty `catch` hides the failure. If
 continuing is correct, say so in a warning and explain what was skipped.
-* **Partial-failure traversal should warn and continue.** A recursive walk that
+- **Partial-failure traversal should warn and continue.** A recursive walk that
 meets one access-denied directory should report it and keep going, rather than
 aborting everything. A bulk operation where one failure means the whole result
 is wrong should fail hard — pick per operation and document the choice.
@@ -283,7 +357,6 @@ from a syntax error:
 $errors = $null
 [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$null, [ref]$errors) | Out-Null
 @($errors).Count | Should -Be 0
-
 ```
 
 **Aggregate problems, then assert empty.** Collecting every failure into a list
@@ -294,7 +367,6 @@ run:
 $problems = [System.Collections.Generic.List[string]]::new()
 # ... $problems.Add("...") per issue ...
 ($problems -join [Environment]::NewLine) | Should -BeNullOrEmpty
-
 ```
 
 **A test file that cannot be parsed never reports a failed test.** It produces a
@@ -303,7 +375,6 @@ and reports a broken suite as green. Check all three:
 
 ```powershell
 $failures = $result.FailedCount + $result.FailedContainersCount + $result.FailedBlocksCount
-
 ```
 
 Report containers and blocks separately from tests in the message, otherwise
@@ -342,40 +413,123 @@ information stream: `(Get-Example 6>&1 | Out-String)`.
 **Make a linter a gate, not advice.** Run PSScriptAnalyzer in the test suite so
 a violation fails the build.
 
+**Lint Markdown with markdownlint-cli2, on the same terms.** See the
+Documentation section above. A tool that is not installed must not turn the
+check into a silent pass: report loudly that it was skipped, or the run looks
+verified when it is not.
+
+**Fix diagnostics on code you did not write opportunistically,** but only while
+the count stays small. A single PSScriptAnalyzer warning in a function you are
+already editing is a free fix. Thirty of them is a separate piece of work with
+its own reviewable diff — do not bury a baseline change inside a feature.
+
+**A gate needs a baseline before it needs a threshold.** `-Severity Error` is a
+reasonable first gate. Raising it to warnings requires deciding what happens to
+the existing ones: fix them, or record a count that must not increase. A
+threshold nobody has agreed to is not a gate, and neither is one that has never
+been seen to fail.
+
 **Guard documentation with tests.** Because help is the source of truth, a test
 should fail when a public function loses its help block, its `.SYNOPSIS`, or a
-`.PARAMETER` entry. Keep an explicit, commented allowlist of parameters that are
+`.PARAMETER` entry. Keep an explicit, commented allow-list of parameters that are
 deliberately undocumented, so a new undocumented parameter still fails.
 
 ### 1.9 Pitfalls worth knowing
 
-* **Dynamic scoping leaks caller variables.** A function can read a variable it
+- **Dynamic scoping leaks caller variables.** A function can read a variable it
 never declared, because it exists in the caller's scope. A helper called as
 `Build-Node -Item $dir` that then reads `$MaxDepth` from the function that
 called it will work, be invisible in its own signature, and break silently on
 refactor. Pass such values as explicit parameters.
-* **An empty `PSModulePath` does not mean "no modules".** PowerShell reads
+- **An empty `PSModulePath` does not mean "no modules".** PowerShell reads
 `$env:PSModulePath = ''` as "use the defaults", so `Import-Module Pester`
 still succeeds. A test that clears it to simulate a missing module passes
 without ever reaching the branch it is meant to cover. Point it at a
 directory that does not exist instead, and assert the module really is gone.
-* **A double quote inside a string passed to a native command is eaten.** To
+- **A double quote inside a string passed to a native command is eaten.** To
 pass `PSModulePath = ""` to `powershell.exe -Command`, the argument parser
 consumes the quotes and the child sees a single `"`, producing a parse error
 that looks like a bug in the code under test. Build the child script as a
 file and pass it with `-File`; that also avoids deadlocks seen when changing
 `PSModulePath` through `-Command`.
-* **`-eq` against an array filters instead of returning a boolean.**
+- **`-eq` against an array filters instead of returning a boolean.**
 `@('a','b','c') -eq 'b'` returns a one-element array containing `b`, and any
 non-empty array is truthy, so `if ($array -eq 'x')` is true whenever *any*
 element matches. Use `-contains` / `-notcontains`, which read as the question
 you meant.
-* **Nested `Where-Object` scripts both use `$_`.** Capture the outer value in a
+- **Nested `Where-Object` scripts both use `$_`.** Capture the outer value in a
 local before entering the inner block, or the pattern is tested against the
 wrong object.
-* **`Get-ChildItem` returns `[DateTime]`, not strings,** for `LastWriteTime` and
+- **`Get-ChildItem` returns `[DateTime]`, not strings,** for `LastWriteTime` and
 friends. String operations and `[datetime]` casts behave differently than
 expected.
-* **Exact matching is rarely what a user wants from a filter.** `-notcontains`
+- **Exact matching is rarely what a user wants from a filter.** `-notcontains`
 needs an exact, case-insensitive name and silently ignores wildcards, so
 `-Exclude '*.log'` does nothing. Prefer `-like` / `-notlike` for patterns.
+
+## 2. This repository
+
+Section 1 is portable and is meant to be copied into other repositories.
+Section 2 is specific to PSToolkit: the layout, and the traps that only apply
+here. The README covers the project for a reader; `Get-Help` covers the
+commands. Neither repeats what is below.
+
+### 2.1 Layout
+
+```text
+Public/         exported functions, one Verb-Noun function per file
+Private/        internal helpers, camelCase, dot-sourced by the .psm1
+Tests/          Pester tests, one file per public function plus infrastructure
+Scripts/        developer utilities: build, test runner, one-off helpers
+.githooks/      pre-commit hook; POSIX sh, enabled with core.hooksPath
+PSToolkit.psd1  manifest, including the generated export lists
+PSToolkit.psm1  loader; dot-sources Private/ then Public/
+```
+
+Only `Public/` is the module. `Scripts/` is not exported and is not covered by
+the module's contract, so do not treat the two as interchangeable.
+
+**The module separates data from presentation.** The `Get-`-style functions
+return objects; `Format-Tree` is the only thing that writes a rendered tree to
+the host. Decide which side of that line a new command belongs on before
+writing it, because the halves have different testing needs: data can be
+asserted directly, whereas host output has to be captured with `6>&1`.
+
+### 2.2 Traps specific to this repository
+
+- **The dynamic-scoping trap in 1.9 has been fixed here; keep it fixed.**
+  `Get-FolderStructure` used to delegate to a private helper that read
+  `$Exclude`, `$File`, `$Directory` and `$MaxDepth` out of its caller's scope.
+  Traversal now lives in `Private/getTreeNodes.ps1`, which takes all of them as
+  explicit parameters. If you add a private helper, pass its inputs.
+- **`Get-FolderStructure` returns objects; `Format-Tree` draws them.** The
+  `tree` alias points at `Format-Tree`, not at `Get-FolderStructure`, so that
+  `tree` and `tree <path>` keep printing a tree. Preserve that if you add a
+  renderer. The split is recent, so any note or test still describing
+  `Get-FolderStructure` output as unpipeable is stale.
+- **Sibling "lastness" in `Format-Tree` is subtle and has been wrong twice.** Two
+  plausible shortcuts fail. Comparing only the next node breaks for a node with
+  children, because the next node is its own child. Comparing depths across the
+  whole sequence breaks because two nodes at the same depth in different
+  subtrees are not siblings. It needs the stack-based forward pass that is there
+  now, and `Tests/Format-Tree.tests.ps1` pins both cases.
+- **`Build-Module.ps1` rewrites the root `PSToolkit.psd1` in place,** via
+  `Update-ModuleManifest`, which reserialises the whole file and drops the
+  comments explaining why the export lists are explicit. It also copies
+  `Public\*.ps1`, `Private\*.ps1` and `Scripts\*.ps1` but not `LICENSE` or
+  `Tests\`, so a built module is not self-contained. `LicenseUri` is a GitHub
+  URL, so it still resolves. Both are open items in `TODO.md`.
+- **`Build-Module.ps1` warns and builds anyway when Pester is absent,** so a
+  build can be unverified. Per 1.8, treat that warning as an error in any
+  automated pipeline. It is also open in `TODO.md`.
+- **`PSToolkit.psd1` is UTF-8 *with* BOM.** Any script that rewrites the
+  manifest must use `UTF8Encoding($true)`. A `Get-Content` / `Set-Content`
+  round-trip strips the BOM. See 1.1.
+- **`Get-FolderStructure.LegacyArgs` is deliberately undocumented,** and the
+  README records the exception for users. The contributor detail is that it is
+  allowlisted in `Tests/PSToolkit.tests.ps1` and explained in a comment there,
+  so a new undocumented parameter still fails the help test.
+- **Exclusion semantics differ slightly between the two traversal commands:**
+  `Get-FolderStructure` prunes, `Get-EmptyFolder` scans and omits. The README
+  states the difference for users; which behaviour is wanted is still open in
+  `TODO.md`. Both match names with wildcards per 1.5.

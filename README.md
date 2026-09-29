@@ -30,16 +30,29 @@ To produce a folder you can copy into a module path:
 Import-Module C:\Modules\PSToolkit\PSToolkit.psd1
 ```
 
+## Repository layout
+
+```text
+Public/         exported functions, one Verb-Noun function per file
+Private/        internal helpers, dot-sourced by the .psm1
+Tests/          Pester tests
+Scripts/        developer utilities; not part of the module
+```
+
+Only `Public/` is the module. `Scripts/` is not exported and is not covered by
+the module's contract, so the two are not interchangeable. `AGENTS.md` 2.1 has
+the full layout and the conventions behind it.
+
 ## Commands
 
 | Command | What it does |
 | --- | --- |
 | `Format-Tree` | Draws a directory hierarchy to the host. Aliased to `tree`. |
 | `Get-FolderStructure` | Returns a directory hierarchy as objects, one per item. |
-| `Get-EmptyFolders` | Finds directories that contain nothing at all. |
+| `Get-EmptyFolder` | Finds directories that contain nothing at all. |
 | `Get-FolderSize` | Gets the size of subdirectories in the specified path. |
-| `Convert-IniFileToVariables` | Converts an INI file's contents to PowerShell variables. |
-| `ConvertTo-CapitalizedWords` | Capitalizes initial letters of words in a text string. |
+| `Import-IniFile` | Converts an INI file's contents to PowerShell variables. |
+| `ConvertTo-TitleCase` | Capitalizes initial letters of words in a text string. |
 
 `tree` is an alias for `Format-Tree`, so it is a drop-in replacement for the
 cmd.exe `tree` command, including `tree` on its own for the current directory.
@@ -89,7 +102,7 @@ assets        2
 ### Find empty directories
 
 ```powershell
-Get-EmptyFolders -Path C:\Projects
+Get-EmptyFolder -Path C:\Projects
 ```
 
 ```text
@@ -119,7 +132,7 @@ Sizes are reported per subdirectory, not for the root itself.
 ### Load an INI file into variables
 
 ```powershell
-Convert-IniFileToVariables -Path .\config.ini
+Import-IniFile -Path .\config.ini
 ```
 
 Given a `config.ini` containing:
@@ -137,7 +150,7 @@ names a read-only automatic variable such as `Host` cannot be assigned even with
 ### Capitalize words
 
 ```powershell
-ConvertTo-CapitalizedWords -Text "the quick brown-fox"
+ConvertTo-TitleCase -Text "the quick brown-fox"
 ```
 
 ```text
@@ -159,14 +172,26 @@ Get-Command -Module PSToolkit
 
 ```powershell
 .\Scripts\Invoke-Pester.ps1                                  # run the test suite
-Invoke-ScriptAnalyzer -Path ./ -Recurse                      # lint
+Invoke-ScriptAnalyzer -Path ./ -Recurse                      # lint PowerShell
+markdownlint-cli2 "**/*.md"                                  # lint Markdown
 .\Scripts\Build-Module.ps1 -OutputPath "C:\some\output"      # build; runs tests first
 ```
 
-Pester 5 or later and PSScriptAnalyzer are needed to develop the module, not to
-use it. `Invoke-Pester.ps1` exits non-zero on any failure, including a test file
-that fails to load, so it is safe to use as a CI gate. `Build-Module.ps1` runs
-the suite first and refuses to build if it is not green.
+Pester 5 or later, PSScriptAnalyzer and markdownlint-cli2 are needed to develop
+the module, not to use it. `Invoke-Pester.ps1` exits non-zero on any failure,
+including a test file that fails to load, so it is safe to use as a CI gate.
+`Build-Module.ps1` runs the suite first and refuses to build if it is not green.
+
+A pre-commit hook lints staged Markdown, so the documentation rules are checked
+before a commit rather than after. It is off by default, because git stores the
+hooks path as local configuration, so enable it once per clone:
+
+```powershell
+git config core.hooksPath .githooks
+```
+
+The hook fails the commit if markdownlint-cli2 is not installed rather than
+skipping the check quietly. `git commit --no-verify` bypasses it on purpose.
 
 `Build-Module.ps1` derives the export lists from `Public/` and writes them back
 into `PSToolkit.psd1` in the source tree, so expect that one file to be modified
@@ -186,14 +211,14 @@ Recorded here rather than left to look like oversights:
   convention does not error. Documenting it would advertise a dead convention.
   Retiring it would be a fair future change.
 - **The two `-Exclude` parameters differ slightly.** `Get-FolderStructure`
-  prunes a directory that matches and never walks into it; `Get-EmptyFolders`
+  prunes a directory that matches and never walks into it; `Get-EmptyFolder`
   scans everything and merely omits matches from its results. Both match
   wildcards against the item's name, following `Get-ChildItem -Exclude`.
 - **`Format-Tree` cannot draw nothing.** Given neither pipeline input nor
   `-Path` it draws the current location, and PowerShell cannot distinguish an
   empty pipeline from no pipeline. A pipeline that yields nothing therefore draws
   the current location too.
-- **`Convert-IniFileToVariables` only works in the global scope.** A function
+- **`Import-IniFile` only works in the global scope.** A function
   inside a module runs in the module's scope, so `-Scope Script` and `-Scope
   Local` create variables the caller cannot read. `Global` is the default for
   that reason.

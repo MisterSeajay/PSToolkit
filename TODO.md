@@ -29,18 +29,20 @@ decision — see below.
   Written, and every one of the 11 command lines it publishes was run before
   being written down. Four of the first drafts did not work and were corrected
   rather than published: `Get-FolderSize` has no `Size` property, `-MaxDepth 1`
-  emits the root alone, `Convert-IniFileToVariables` created nothing the caller
+  emits the root alone, `Import-IniFile` created nothing the caller
   could see, and bare `tree` printed nothing. Two of those were product bugs and
   are fixed; see the commit before this one. Lints clean under
   `markdownlint-cli2`, UTF-8 without a BOM, CRLF.
 
-- [ ] **Decide where a future session is pointed at this file.** `AGENTS.md`
-  2.6 used to say "read TODO.md at the start of a session"; that section
-  has been rewritten and the pointer is gone. The new `AGENTS.md` says a
-  deliberate exception belongs in `README.md`, which is a different thing:
-  a README is read by users, and this list is not for them. Options: add a
-  short contributor note back, move the deferred-work items into
-  `AGENTS.md`, or accept that this file is only found by opening it.
+- [ ] **Decide where a future session is pointed at this file.** There is no
+  longer anything that says "read TODO.md at the start of a session". The
+  repository-specific guidance was moved to `Powershell_2.md` and has since been
+  folded back into `AGENTS.md` 2, which does not mention this file.
+  `AGENTS.md` says a deliberate exception belongs in `README.md`, which is a
+  different thing: a README is read by users, and this list is not for them.
+  Options: add a short contributor note back to `AGENTS.md` 2, move the
+  deferred-work items into `AGENTS.md`, or accept that this file is only found by
+  opening it.
 
   Partly answered for now: the README's Development section points at both this
   file and `AGENTS.md`, so a contributor who reads the README finds them.
@@ -53,8 +55,8 @@ Found by auditing the code against the rewritten `AGENTS.md`, not by a failure.
   `AGENTS.md` 1.2 now requires explicit `begin` / `process` / `end` on any
   function taking `ValueFromPipeline`, because a function body with no
   sections only sees the last pipeline object. Missing from
-  `Convert-IniFileToVariables`, `ConvertTo-CapitalizedWords`,
-  `Get-EmptyFolders`, `Get-FolderSize` and `Get-FolderStructure`. All five
+  `Import-IniFile`, `ConvertTo-TitleCase`,
+  `Get-EmptyFolder`, `Get-FolderSize` and `Get-FolderStructure`. All five
   currently work, because each is invoked with one object at a time or
   aggregates outside the loop — but that is luck, not design. Mechanical
   fix, worth doing as its own change so a diff stays reviewable.
@@ -75,7 +77,7 @@ Found by auditing the code against the rewritten `AGENTS.md`, not by a failure.
   every input including correct code. `[Parameter()]` is an `AttributeAst` whose
   `TypeName.Name` is `Parameter`. A gate that cannot go green is not a gate.
 
-- [ ] **`Convert-IniFileToVariables` is a modifying command with no
+- [ ] **`Import-IniFile` is a modifying command with no
   `-WhatIf`.** It creates variables in the caller's session, and
   `AGENTS.md` 1.2 requires `SupportsShouldProcess` for anything that
   modifies state. Whether creating a session variable counts as "modifying
@@ -151,11 +153,12 @@ Found by auditing the code against the rewritten `AGENTS.md`, not by a failure.
 
 ## Deliberate behaviour to confirm or change
 
-- [ ] **`Get-EmptyFolders` scans excluded directories; `Get-FolderStructure`
-  prunes them.** Currently intentional and recorded in `AGENTS.md` 2.5.
+- [ ] **`Get-EmptyFolder` scans excluded directories; `Get-FolderStructure`
+  prunes them.** Currently intentional and recorded in `AGENTS.md` 2.2 and in
+  the README's deliberate exceptions.
   The difference is real: pruning is faster, but scanning still finds empty
   directories that live *inside* an excluded folder. Confirm which
-  behaviour is wanted for `Get-EmptyFolders`, then either keep it and
+  behaviour is wanted for `Get-EmptyFolder`, then either keep it and
   tighten the wording, or make both prune. Needs a decision.
 
 - [ ] **`Get-FolderStructure.LegacyArgs` is a dead shim.** It swallows the

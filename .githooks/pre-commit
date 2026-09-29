@@ -1,0 +1,36 @@
+#!/bin/sh
+#
+# Pre-commit hook: lint the staged Markdown with markdownlint-cli2.
+#
+# Enable it once per clone, because core.hooksPath is local config and is not
+# committed with the repository:
+#
+#     git config core.hooksPath .githooks
+#
+# Install the linter with:
+#
+#     npm install -g markdownlint-cli2
+#
+# A missing linter fails the commit rather than passing quietly. AGENTS.md 1.8
+# is explicit that a check which can be skipped without saying so is not a gate,
+# and a green commit message is exactly the thing that misleads a later reader.
+# To commit without the check on purpose, use git commit --no-verify.
+
+set -eu
+
+if ! command -v markdownlint-cli2 >/dev/null 2>&1; then
+    echo "markdownlint-cli2 is not installed, so no Markdown was linted." >&2
+    echo "Install it with: npm install -g markdownlint-cli2" >&2
+    echo "Bypass deliberately with: git commit --no-verify" >&2
+    exit 1
+fi
+
+# Only the Markdown going into this commit. Deleted files have nothing left to
+# lint. Renames are linted under their new path, which is the one being written.
+staged=$(git diff --cached --name-only --diff-filter=ACMR -- '*.md')
+
+if [ -z "$staged" ]; then
+    exit 0
+fi
+
+echo "$staged" | tr '\n' '\0' | xargs -0 markdownlint-cli2
