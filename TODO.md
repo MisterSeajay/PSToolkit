@@ -49,7 +49,7 @@ decision — see below.
 
 Found by auditing the code against the rewritten `AGENTS.md`, not by a failure.
 
-- [ ] **Five public functions accept pipeline input but have no `end` block.**
+- [x] **Five public functions accept pipeline input but have no `end` block.**
   `AGENTS.md` 1.2 now requires explicit `begin` / `process` / `end` on any
   function taking `ValueFromPipeline`, because a function body with no
   sections only sees the last pipeline object. Missing from
@@ -58,6 +58,22 @@ Found by auditing the code against the rewritten `AGENTS.md`, not by a failure.
   currently work, because each is invoked with one object at a time or
   aggregates outside the loop — but that is luck, not design. Mechanical
   fix, worth doing as its own change so a diff stays reviewable.
+
+  Checked each of the five before changing anything: all of them put the whole
+  of their work in `process` and accumulate nothing, so the `end` blocks are
+  empty and the change is structural, with no behaviour difference. That is the
+  form `AGENTS.md` 1.2's own example shows.
+
+  Guarded by a new test in `Tests/PSToolkit.tests.ps1` that reads the AST rather
+  than the source text, so a block written on one line is not mistaken for a
+  missing one. Removing one `end` block turns it red naming the file and the
+  function.
+
+  The first version of that test was red for the wrong reason: it tested
+  `-isnot [System.Management.Automation.Language.ParameterAttributeAst]`, and
+  that type does not exist in Windows PowerShell 5.1, so it would have failed on
+  every input including correct code. `[Parameter()]` is an `AttributeAst` whose
+  `TypeName.Name` is `Parameter`. A gate that cannot go green is not a gate.
 
 - [ ] **`Convert-IniFileToVariables` is a modifying command with no
   `-WhatIf`.** It creates variables in the caller's session, and
@@ -112,14 +128,26 @@ Found by auditing the code against the rewritten `AGENTS.md`, not by a failure.
   to fix the real ones and raise the gate, or record a baseline count that
   must not increase. Needs a decision.
 
-- [ ] **Markdown linting is documented but not gated.** `AGENTS.md` now
-  requires markdownlint-cli2 and the repo is clean under it, but nothing
-  enforces it: `Tests/Quality.tests.ps1` only runs PSScriptAnalyzer, so a later
-  edit can break the rules while the suite stays green. The trap is the one
-  1.8 already names, and here it is sharper because markdownlint-cli2 is an npm
-  package rather than a PowerShell module, so "is it installed?" is a different
-  check. Decide whether the gate belongs in the Pester suite or in a separate
-  step, and what a missing tool does.
+- [x] **Markdown linting was documented but not gated.** `AGENTS.md` requires
+  markdownlint-cli2 and the repo is clean under it, but nothing enforced it:
+  `Tests/Quality.tests.ps1` only runs PSScriptAnalyzer, so a later edit could
+  break the rules while the suite stayed green. Fixed by adding
+  `.githooks/pre-commit`, which lints the staged Markdown, and pinning
+  `.githooks/*` to LF in `.gitattributes` so the shebang survives the
+  repository-wide `eol=crlf` rule. A missing linter fails the commit rather
+  than skipping quietly, per 1.8. The hook is off by default on a fresh clone
+  because `core.hooksPath` is local config, so the enable step is documented in
+  `AGENTS.md` rather than assumed.
+
+- [ ] **The pre-commit hook is advisory in practice and cannot be the only
+  gate.** It covers staged Markdown on a machine where it is enabled, and it
+  covers nothing else: a file edited without being staged, a commit made with
+  `--no-verify`, a clone where `core.hooksPath` was never set, or CI. If the
+  Markdown rules are to be a real gate rather than a convenience, they need to
+  run in `Tests/Quality.tests.ps1` or in a CI step as well. The tool-absent
+  case needs the same decision as above, except that here the honest default
+  is failure, so the practical question is whether a developer without Node
+  installed can run the suite at all.
 
 ## Deliberate behaviour to confirm or change
 

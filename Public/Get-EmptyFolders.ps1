@@ -89,4 +89,6 @@
             Write-Error "Error scanning path '$Path': $_"
         }
     }
+
+    end { }  # Nothing to finalise: each path is scanned wholly in process.
 }

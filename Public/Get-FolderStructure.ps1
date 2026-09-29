@@ -103,4 +103,6 @@
             -IncludeDirectories (-not $File.IsPresent) `
             -IncludeFiles (-not $Directory.IsPresent)
     }
+
+    end { }  # Nothing to finalise: getTreeNodes emits each node as it walks.
 }

@@ -95,4 +95,6 @@ function Convert-IniFileToVariables {
             Write-Error "Error reading INI file '$Path': $_"
         }
     }
+
+    end { }  # Nothing to finalise: each path is read wholly in process.
 }

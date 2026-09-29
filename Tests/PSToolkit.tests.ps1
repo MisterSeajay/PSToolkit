@@ -137,6 +137,61 @@
                 }
             }
         }
+
+        It "Functions taking pipeline input should use begin, process and end" {
+            # AGENTS.md 1.2. The failure this guards is invisible to a test that only
+            # runs the function: a function body with no sections executes once for the
+            # whole pipeline rather than once per object, which still produces correct
+            # output for a single item and silently keeps only the last item for many.
+            #
+            # Reading the AST rather than the source text, so a block written on one
+            # line is not mistaken for a missing one. An empty 'end { }' counts: the
+            # rule is about explicit structure, not about having work to do there.
+            $problems = [System.Collections.Generic.List[string]]::new()
+            $PublicFolder = Join-Path $RootFolder "Public"
+
+            foreach ($file in (Get-ChildItem -Path $PublicFolder -Filter "*.ps1")) {
+                $parseErrors = $null
+                $ast = [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$null, [ref]$parseErrors)
+                $funcs = $ast.FindAll({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)
+
+                foreach ($func in $funcs) {
+                    $takesPipeline = $false
+                    if ($func.Body.ParamBlock) {
+                        foreach ($param in $func.Body.ParamBlock.Parameters) {
+                            foreach ($attr in $param.Attributes) {
+                                # [Parameter(...)] is an AttributeAst whose TypeName is
+                                # 'Parameter'. There is no ParameterAttributeAst type in
+                                # Windows PowerShell 5.1 - naming one makes the test fail
+                                # on every input rather than on the thing it checks.
+                                if ($attr -isnot [System.Management.Automation.Language.AttributeAst]) { continue }
+                                if ($attr.TypeName.Name -ne 'Parameter') { continue }
+                                foreach ($named in $attr.NamedArguments) {
+                                    if ($named.ArgumentName -notin 'ValueFromPipeline', 'ValueFromPipelineByPropertyName') { continue }
+                                    # An attribute value of $true is a VariableExpressionAst,
+                                    # so compare on the name rather than evaluating it.
+                                    $isTrue = $named.Argument -is [System.Management.Automation.Language.VariableExpressionAst] -and
+                                              $named.Argument.VariablePath.UserPath -eq 'true'
+                                    if ($isTrue) { $takesPipeline = $true }
+                                }
+                            }
+                        }
+                    }
+                    if (-not $takesPipeline) { continue }
+
+                    $missing = [System.Collections.Generic.List[string]]::new()
+                    if (-not $func.Body.BeginBlock)   { $missing.Add('begin') }
+                    if (-not $func.Body.ProcessBlock) { $missing.Add('process') }
+                    if (-not $func.Body.EndBlock)     { $missing.Add('end') }
+
+                    if ($missing.Count) {
+                        $problems.Add("$($file.Name): $($func.Name) takes pipeline input but has no $($missing -join ', ') block(s)")
+                    }
+                }
+            }
+
+            ($problems -join [Environment]::NewLine) | Should -BeNullOrEmpty
+        }
     }
 
     Context "Test runner exit codes" {

@@ -49,4 +49,6 @@ function ConvertTo-CapitalizedWords {
 
         return $CapitalizedWords
     }
+
+    end { }  # Nothing to finalise: all of this command's work is per-item.
 }
