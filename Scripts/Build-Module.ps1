@@ -1,27 +1,57 @@
 ﻿<#
 .SYNOPSIS
-    Builds the PSToolkit module, updates its manifest exports, and copies it to a specified output path.
+    Builds the PSToolkit module and copies it to a specified output path.
 .DESCRIPTION
-    1. Parses Public/ scripts using PowerShell AST to discover exported functions and Set-Alias definitions.
-    2. Updates PSToolkit.psd1 with discovered FunctionsToExport and AliasesToExport.
-    3. Copies all module files to the specified destination path.
-    4. Ensures the module is placed in a PSToolkit folder.
-    5. Removes any existing content at the destination to ensure a clean build.
+    1. Runs the Pester suite and refuses to build if it is not green.
+    2. Parses Public/ using the PowerShell AST to discover exported functions and
+       Set-Alias definitions.
+    3. Removes any existing content at the destination, then copies the module
+       files, Public/, Private/, Scripts/, the README and the licence.
+    4. Writes the discovered export lists into the *copied* manifest, so the
+       manifest checked into the repository is never rewritten by a build.
+
+    The source PSToolkit.psd1 is treated as hand-owned. Its export lists are
+    checked against what Public/ actually contains by Tests/PSToolkit.tests.ps1,
+    which fails if a function was added to Public/ and forgotten in the manifest.
+    Deriving them at build time into the source instead would have caught the
+    same drift, but only as a side effect: Update-ModuleManifest reserialises
+    the whole file, dropping the comments that explain why the lists are
+    explicit and writing VariablesToExport as a commented-out line, and it
+    stamps a generation timestamp in, so every run leaves the working tree
+    dirty.
 .PARAMETER OutputPath
-    The destination path where the module will be saved.
-    If it doesn't end with "PSToolkit", that folder will be appended.
+    The destination the module will be written to. A "PSToolkit" folder is
+    appended if the path does not already end with it.
+.PARAMETER SkipTests
+    Build without running the Pester suite. Intended for a machine where Pester
+    genuinely is not available, and it must be asked for deliberately: the
+    resulting build is unverified, and without this switch a missing Pester
+    aborts the build rather than producing one.
 .EXAMPLE
     .\Build-Module.ps1 -OutputPath "C:\ModuleOutput"
-    Builds the module, updates exports, and copies it to C:\ModuleOutput\PSToolkit
+    Runs the test suite, then builds to C:\ModuleOutput\PSToolkit.
+.EXAMPLE
+    .\Build-Module.ps1 -OutputPath "C:\ModuleOutput" -SkipTests
+    Builds without testing, which the output states plainly. Use this knowing
+    the result is unverified.
 .NOTES
     Requires write access to the destination path.
-    WARNING: This script will remove all existing content at the destination path.
+    WARNING: This script removes all existing content at the destination path.
+
+    Tests/ is not copied. The suite exercises the repository layout rather than
+    the installed module, and PSToolkit.psd1 claims no dependency on it; the
+    licence is copied because an MIT-licensed module distributed without its
+    licence text is a licensing problem, not a tidiness one.
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
     [string]
-    $OutputPath
+    $OutputPath,
+
+    [Parameter()]
+    [switch]
+    $SkipTests
 )
 
 # -------------------------------------------------------------------------
@@ -33,21 +63,46 @@ $PublicFolder = Join-Path -Path $ModuleRoot -ChildPath "Public"
 $ManifestPath = Join-Path -Path $ModuleRoot -ChildPath "PSToolkit.psd1"
 
 # -------------------------------------------------------------------------
-# Step 0: Run Pester tests for the module; exit on failures
+# Step 0: Run the Pester suite; refuse to build an unverified module
 # -------------------------------------------------------------------------
 # Import Pester rather than merely listing it: [PesterConfiguration] cannot
 # resolve from a module that is available but not loaded, and that error is
 # non-terminating, so the test step was skipped while the build reported success.
-$pester = Import-Module Pester -MinimumVersion 5.0.0 -PassThru -ErrorAction SilentlyContinue
+#
+# A missing Pester is a failure, not a warning. The old behaviour warned and
+# carried on, which meant an unverified build was indistinguishable from a
+# verified one in the output. -SkipTests is the way to ask for that on purpose.
+if ($SkipTests) {
+    Write-Warning "Tests skipped by request. This build is UNVERIFIED."
+}
+else {
+    $pester = Import-Module Pester -MinimumVersion 5.0.0 -PassThru -ErrorAction SilentlyContinue
 
-if ($pester) {
+    if (-not $pester) {
+        throw @"
+Build aborted: Pester 5 or later is not available, so the suite could not run
+and this build would be unverified.
+
+Install it with:
+    Install-Module Pester -Scope CurrentUser -MinimumVersion 5.0.0
+
+To build anyway, having accepted that nothing was tested, pass -SkipTests.
+"@
+    }
+
     Write-Host "Running Pester unit tests..." -ForegroundColor Cyan
 
     $PesterConfig = [PesterConfiguration]::Default
     $PesterConfig.Run.Path = Join-Path -Path $ModuleRoot -ChildPath "Tests"
     $PesterConfig.Output.Verbosity = 'Normal'
+    # PassThru is what makes the counts below real. Without it Pester returns
+    # $null, every total reads 0, and a failing suite is reported as a pass.
     $PesterConfig.Run.PassThru = $true
     $testResult = Invoke-Pester -Configuration $PesterConfig
+
+    if ($null -eq $testResult) {
+        throw "Build aborted: Pester returned no result, so the suite's outcome is unknown."
+    }
 
     # A test file that cannot be parsed, or that fails during discovery, produces a
     # failed *container* rather than a failed test. Checking FailedCount alone reports
@@ -59,9 +114,6 @@ if ($pester) {
     }
 
     Write-Host "All $($testResult.TotalCount) tests passed." -ForegroundColor Green
-}
-else {
-    Write-Warning "Pester 5+ not found; the test gate is being SKIPPED and this build is unverified."
 }
 # -------------------------------------------------------------------------
 
@@ -108,32 +160,18 @@ if (Test-Path -Path $PublicFolder) {
 
     # This module is a script module: everything lives in Public/ as a function, so
     # there are no cmdlets to export and no module-scope variables to publish.
-    # Declared rather than left undefined so the conditional splat below has
+    # Declared rather than left undefined so the conditional splat later has
     # something defined to test under Set-StrictMode.
     $CmdletsToExport   = @()
     $VariablesToExport = @()
 
     Write-Verbose "Found $( $FunctionsToExport.Count ) functions and $( $AliasesToExport.Count ) aliases to export."
 
-    # Update manifest in source root before copying
-    #
-    # Only non-empty export lists are passed. Update-ModuleManifest validates its
-    # parameters and rejects an empty collection - "the argument is null, empty, or
-    # an element contains a null value" - so passing @() for a list with nothing
-    # in it aborts the build. The manifest already spells out explicit empty
-    # arrays for the lists this module does not export, and omitting a parameter
-    # leaves the existing value alone.
-    $UpdateParams = @{
-        Path              = $ManifestPath
-        FunctionsToExport = $FunctionsToExport
-    }
-
-    if ($AliasesToExport)   { $UpdateParams['AliasesToExport']   = $AliasesToExport }
-    if ($CmdletsToExport)   { $UpdateParams['CmdletsToExport']   = $CmdletsToExport }
-    if ($VariablesToExport) { $UpdateParams['VariablesToExport'] = $VariablesToExport }
-
-    Update-ModuleManifest @UpdateParams
-    Write-Verbose "Updated $ManifestPath with latest exports."
+    # Deliberately NOT writing these to $ManifestPath here. The update is applied
+    # to the copied manifest in Step 4, after the destination exists.
+}
+else {
+    throw "Build aborted: no Public/ folder at $PublicFolder, so there is nothing to build."
 }
 
 # -------------------------------------------------------------------------
@@ -208,4 +246,54 @@ if (Test-Path -Path $ReadmePath) {
     Write-Verbose "Copied README.md"
 }
 
-Write-Host "Module successfully built, manifest updated, and copied to: $OutputPath" -ForegroundColor Green
+# The licence travels with the module. An MIT-licensed module distributed without
+# its licence text is a licensing problem, not a tidiness one, and the manifest's
+# LicenseUri only helps someone who already has the folder open.
+$LicensePath = Join-Path -Path $ModuleRoot -ChildPath "LICENSE"
+if (Test-Path -Path $LicensePath) {
+    Copy-Item -Path $LicensePath -Destination $OutputPath -Force
+    Write-Verbose "Copied LICENSE"
+}
+
+# -------------------------------------------------------------------------
+# Step 4: write the discovered exports into the COPIED manifest
+# -------------------------------------------------------------------------
+# The repository's PSToolkit.psd1 is hand-owned and is never touched by a build.
+# What is derived from Public/ is applied here, to the copy, so the source file
+# keeps its comments, keeps VariablesToExport as an explicit array, and does not
+# gain a generation timestamp that would make every run a diff.
+#
+# Tests/PSToolkit.tests.ps1 checks the source manifest against Public/ directly,
+# so forgetting an export still fails the build - as a named test failure rather
+# than as a mysteriously rewritten file.
+$BuiltManifest = Join-Path -Path $OutputPath -ChildPath "PSToolkit.psd1"
+
+# Only non-empty export lists are passed. Update-ModuleManifest validates its own
+# parameters and rejects an empty collection - "the argument is null, empty, or an
+# element contains a null value" - so passing @() for a list with nothing in it
+# aborts the build. Omitting a parameter leaves the copied value alone.
+$UpdateParams = @{
+    Path              = $BuiltManifest
+    FunctionsToExport = $FunctionsToExport
+}
+
+if ($AliasesToExport)   { $UpdateParams['AliasesToExport']   = $AliasesToExport }
+if ($CmdletsToExport)   { $UpdateParams['CmdletsToExport']   = $CmdletsToExport }
+if ($VariablesToExport) { $UpdateParams['VariablesToExport'] = $VariablesToExport }
+
+Update-ModuleManifest @UpdateParams
+Write-Verbose "Applied derived exports to the built manifest: $BuiltManifest"
+
+# The built module is the thing a user imports, so it is the thing worth checking.
+# A manifest that does not load, or whose exports do not match what is in the
+# folder, is a failed build even though every file copied without error.
+try {
+    $built = Test-ModuleManifest -Path $BuiltManifest -ErrorAction Stop
+    $count = @($built.ExportedFunctions.Keys).Count
+    Write-Host "Built manifest validated: $($built.Name) $($built.Version), $count function(s)." -ForegroundColor Green
+}
+catch {
+    throw "Build aborted: the manifest it produced does not validate. $($_.Exception.Message)"
+}
+
+Write-Host "Module successfully built and copied to: $OutputPath" -ForegroundColor Green

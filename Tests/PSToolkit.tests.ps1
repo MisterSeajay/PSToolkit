@@ -120,6 +120,66 @@
             { Test-ModuleManifest -Path $ManifestPath } | Should -Not -Throw
         }
 
+        It "Manifest export lists should match what Public/ actually defines" {
+            # The drift check that used to be a side effect of building.
+            #
+            # Build-Module.ps1 used to write its derived export lists into this
+            # repository's manifest, so a function added to Public/ and forgotten
+            # here showed up as a rewritten file in git status. That was a signal,
+            # but an expensive one: Update-ModuleManifest reserialises the whole
+            # manifest, dropping the comments that explain why the lists are
+            # explicit and writing VariablesToExport as a commented-out line, and
+            # it stamps a generation timestamp in, so every run was a diff. The
+            # build now applies its derived lists to the copy it produces and this
+            # test does the comparing instead, where a failure names the function.
+            $problems = [System.Collections.Generic.List[string]]::new()
+            $PublicFolder = Join-Path $RootFolder "Public"
+
+            $discoveredFunctions = [System.Collections.Generic.List[string]]::new()
+            $discoveredAliases   = [System.Collections.Generic.List[string]]::new()
+
+            foreach ($file in (Get-ChildItem -Path $PublicFolder -Filter "*.ps1")) {
+                $parseErrors = $null
+                $ast = [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$null, [ref]$parseErrors)
+                if ($parseErrors) { continue }
+
+                foreach ($func in $ast.FindAll({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
+                    if ($func.Name -like '*-*') { $discoveredFunctions.Add($func.Name) }
+                }
+
+                foreach ($cmd in $ast.FindAll({ $args[0] -is [System.Management.Automation.Language.CommandAst] }, $true)) {
+                    if ($cmd.GetCommandName() -ne 'Set-Alias') { continue }
+                    # Read the -Name argument rather than guessing at position, so
+                    # 'Set-Alias -Name x -Value y' and 'Set-Alias x y' both work.
+                    $named = $cmd.CommandElements |
+                        Where-Object { $_ -is [System.Management.Automation.Language.CommandParameterAst] -and $_.ParameterName -eq 'Name' }
+                    if ($named) {
+                        $next = $cmd.CommandElements[$cmd.CommandElements.IndexOf($named) + 1]
+                        if ($next) { $discoveredAliases.Add($next.Value) }
+                    }
+                }
+            }
+
+            $manifest = Test-ModuleManifest -Path $ManifestPath
+            $declaredFunctions = @($manifest.ExportedFunctions.Keys)
+            $declaredAliases   = @($manifest.ExportedAliases.Keys)
+
+            foreach ($missing in ($discoveredFunctions | Sort-Object -Unique | Where-Object { $_ -notin $declaredFunctions })) {
+                $problems.Add("Public/ defines $missing but the manifest does not export it")
+            }
+            foreach ($extra in ($declaredFunctions | Where-Object { $_ -notin $discoveredFunctions })) {
+                $problems.Add("the manifest exports $extra but no function in Public/ defines it")
+            }
+            foreach ($missing in ($discoveredAliases | Sort-Object -Unique | Where-Object { $_ -notin $declaredAliases })) {
+                $problems.Add("Public/ defines the alias $missing but the manifest does not export it")
+            }
+            foreach ($extra in ($declaredAliases | Where-Object { $_ -notin $discoveredAliases })) {
+                $problems.Add("the manifest exports the alias $extra but no Set-Alias in Public/ defines it")
+            }
+
+            ($problems -join [Environment]::NewLine) | Should -BeNullOrEmpty
+        }
+
         It "Module PSToolkit.psm1 should import without throwing errors" {
             { Import-Module -Name $ModulePath -Force -ErrorAction Stop } | Should -Not -Throw
         }

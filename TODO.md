@@ -96,20 +96,42 @@ Found by auditing the code against the rewritten `AGENTS.md`, not by a failure.
   failing, unparseable and module-less sandboxes to prove it. See the bug
   list below.
 
-- [ ] **`Build-Module.ps1` builds anyway when Pester is absent.** It warns
+- [x] **`Build-Module.ps1` builds anyway when Pester is absent.** It warns
   loudly, which satisfies half the rule, but still produces an unverified
   build. The guideline says to treat that warning as an error in any
   automated pipeline. Decide: hard-fail the build, or require an explicit
   opt-out switch such as `-SkipTests`. Needs a decision — see below.
 
-- [ ] **`Build-Module.ps1` produces a module that is not self-contained.** It
+  Now hard-fails, and `-SkipTests` is the opt-out. A missing Pester throws a
+  message naming the install command and the bypass, and no output directory is
+  created at all — the old behaviour left an unverified build that looked
+  exactly like a verified one. `-SkipTests` warns "This build is UNVERIFIED",
+  so the escape hatch is something you ask for on the command line rather than
+  a silent downgrade. Verified in a child process with `PSModulePath` pointed
+  at an empty directory: the build aborts and creates nothing.
+
+  A null Pester result is also treated as a failure now. `Run.PassThru` being
+  unset is what made this runner report a failing suite as a pass, and a null
+  result means the outcome is unknown, which is not the same as passing.
+
+- [x] **`Build-Module.ps1` produces a module that is not self-contained.** It
   copies `Public\*.ps1`, `Private\*.ps1`, `Scripts\*.ps1` and the README.
   It does not copy `LICENSE` or `Tests\`. `LicenseUri` is a GitHub URL so
   it still resolves, but an installed copy carries no licence text and no
   way to run its own tests. Done when the output folder matches what
   `PSToolkit.psd1` claims to need.
 
-- [ ] **`Build-Module.ps1` rewrites the checked-in manifest destructively.**
+  `LICENSE` is now copied. An MIT-licensed module distributed without its
+  licence text is a licensing problem rather than a tidiness one, and
+  `LicenseUri` only helps someone who already has the folder open.
+
+  `Tests\` is deliberately not copied. The suite exercises the repository
+  layout rather than the installed module, and the manifest claims no
+  dependency on it, so shipping it would add bulk that nothing reads. The
+  todo's own bar — "matches what `PSToolkit.psd1` claims to need" — is met
+  without it.
+
+- [x] **`Build-Module.ps1` rewrites the checked-in manifest destructively.**
   `Update-ModuleManifest` reserialises the whole file: one run turned a
   37-line hand-written manifest into 128 lines of generated boilerplate,
   dropped the comments explaining *why* the export lists are explicit, and
@@ -123,6 +145,24 @@ Found by auditing the code against the rewritten `AGENTS.md`, not by a failure.
   a `git diff` after a build. Options: apply exports to the output copy only;
   keep updating the source but re-apply the explicit empty arrays and comments
   afterwards; or drop the derivation and treat the manifest as hand-maintained.
+
+  The build now applies its derived lists to the manifest it just copied, and
+  the source `PSToolkit.psd1` is never written. Verified by hashing the file
+  before and after a real build: unchanged. A side benefit is that the built
+  manifest no longer carries a "Generated on:" timestamp, so two builds of the
+  same commit produce the same bytes.
+
+  The drift check moved into the test suite rather than being dropped. A new
+  test in `Tests/PSToolkit.tests.ps1` derives the export lists from `Public/`
+  by AST and compares them to the manifest in both directions, so forgetting
+  an export is a named test failure instead of a mysteriously rewritten file.
+  Adding `Public/Get-AuditThing.ps1` without touching the manifest turns it
+  red: "Public/ defines Get-AuditThing but the manifest does not export it".
+
+  The build also validates its own output with `Test-ModuleManifest` before
+  reporting success. The built module is what a user imports, so it is the
+  thing worth checking; a manifest that does not load is a failed build even
+  though every file copied without error.
 
 - [x] **The lint gate is `-Severity Error` only.** The repo has 0 errors and
   32 warnings. Most are Pester `BeforeAll` false positives
