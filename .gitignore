@@ -1,0 +1,72 @@
+################################################################################
+# OS debris
+
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+$RECYCLE.BIN/
+*.lnk
+*~
+
+################################################################################
+# Local-only files
+
+# Local secrets and machine-specific overrides. These should never be tracked;
+# committing one is a leak, so the rule is here to stop the first commit too.
+*.local
+.env
+.env.*
+!.env.example
+
+################################################################################
+# Editor and IDE per-developer state
+# .vscode/settings.json IS tracked: it holds the repository's Peacock colour
+# scheme. Only the per-machine files below are ignored, and .vscode/ as a whole
+# is deliberately not listed, which would contradict that.
+.vscode/*.log
+.vscode/ipch/
+.vscode/.ropeproject/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.DotSettings.user
+
+# Peacock writes a .code-workspace that duplicates the tracked theme settings.
+# It is per-developer, so it is noise in the repository.
+*.code-workspace
+
+################################################################################
+# Transitive dependency and tool state
+
+node_modules/
+# A locally installed markdownlint-cli2 leaves these behind; the linter itself
+# is expected on PATH, not vendored.
+.markdownlint-cli2cache
+.cache/
+.vagrant/
+
+################################################################################
+# PowerShell
+
+# Build and packaging output
+# Build-Module.ps1 requires an explicit -OutputPath, but these are the
+# conventional landing spots when a developer points it inside the clone.
+Output/
+output/
+dist/
+build/
+artifacts/
+*.nupkg
+*.zip
+
+# TestsResults.xml is the Pester default; the others are common CI names.
+TestResults.xml
+test-results.xml
+*.trx
+coverage.xml
+coverage.json
+coverage/
+.clover.xml
